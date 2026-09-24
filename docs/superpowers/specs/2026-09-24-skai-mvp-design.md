@@ -259,7 +259,16 @@ Levées le 2026-09-24 :
 - ✅ API du SDK : `client.systemOne({ state, questions })`, `choice(instructions, criteria)`,
   `noul(instructions, criteria?)` → `answers.x.choice / .probabilities / .noul`.
 
+Levées pendant l'intégration (captures réelles du 2026-09-24, 562 libellés) :
+- ✅ Changement d'aéroport : « … layover in London. Transfer here from Heathrow Airport to London
+  Gatwick Airport. » (pas de « at <aéroport> ») → escale `airport = "A → B"` + `flags.airportChange`.
+- ✅ Chaque libellé finit désormais par « Carbon emissions estimate: N kilograms. » (ignoré).
+- ✅ Le bouton « View more flights » existe (devient « View fewer flights » une fois déplié).
+- ✅ Consentement sur un profil neuf : Google enchaîne des redirections dont une est avortée
+  (`net::ERR_ABORTED`) → on attend la sortie de consent.google.com par sondage, pas `waitForURL`.
+- ✅ Google remplit la liste progressivement (80 vols puis 9 sur deux essais) → on lit quand la
+  liste est stable (1,5 s sans changement, 12 s max).
+
 Restantes :
-- Libellés exacts pour changement d'aéroport, billets séparés et escale de nuit (à collecter).
-- Nom exact du bouton « more flights » (à collecter avec le script de capture).
+- Libellés exacts pour billets séparés et escale de nuit (jamais vus sur 562 libellés).
 - Limite réelle du nombre d'aéroports par champ côté Google (7 supposé).
