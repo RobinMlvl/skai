@@ -43,8 +43,10 @@ export function ResultsView({ detail, summaryHost }: Props) {
     (itineraryId: string) => {
       const row = rows.find((r) => r.item.id === itineraryId);
       if (!row) return;
-      if (row.traps.length > 0) setShowTrapped(true);
-      if (!row.onFrontier) setOtherLimit((limit) => Math.max(limit, others.length));
+      if (!row.onFrontier) {
+        if (row.traps.length > 0) setShowTrapped(true);
+        setOtherLimit((limit) => Math.max(limit, others.length));
+      }
       setHighlightId(itineraryId);
     },
     [rows, others.length],
