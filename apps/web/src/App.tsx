@@ -1,5 +1,7 @@
 import { useCallback, useState } from "react";
 import { ThinkingOrb } from "thinking-orbs";
+import { Globe } from "./components/Globe";
+import { LivePanel } from "./components/LivePanel";
 import { SearchForm } from "./components/SearchForm";
 import { orbState } from "./lib/orb-state";
 import { useSearchSession } from "./state/useSearchSession";
@@ -11,6 +13,7 @@ export function App() {
     (origins: string[], destinations: string[]) => setSelection({ origins, destinations }),
     [],
   );
+  const shown = session.detail?.search.request ?? selection;
 
   return (
     <div className="app">
@@ -27,9 +30,10 @@ export function App() {
           {session.error && <p className="error" role="alert">{session.error}</p>}
         </section>
         <section className="right">
-          <p className="muted mono small">
-            {selection.origins.join(" ") || "—"} → {selection.destinations.join(" ") || "—"}
-          </p>
+          <Globe origins={shown.origins} destinations={shown.destinations} active={session.running} />
+          {session.events.length > 0 && (
+            <LivePanel events={session.events} running={session.running} onCancel={session.cancel} />
+          )}
         </section>
       </main>
     </div>
