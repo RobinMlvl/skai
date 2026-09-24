@@ -128,7 +128,7 @@ Itinerary {
 
 Tables SQLite :
 - `searches` (id, created_at, request json, status, phase, progress json, stats json, error)
-- `itineraries` (id, search_id, date, data json, raw_label)
+- `itineraries` (id, search_id, date, data json — le libellé brut est dans `data.rawLabel`)
 - `judgments` (itinerary_id, preference, probability, created_at)
 
 Les **pièges et le front de compromis sont recalculés à la lecture** par `core` (pur, rapide) :
@@ -231,7 +231,7 @@ le prix et la durée. Entre deux voisins, l'écart est affiché : « +€40 to s
 |---|---|
 | Date en échec (timeout) | 1 nouvelle tentative, sinon `missing` → recherche `partial` avec la liste des dates manquantes |
 | Blocage Google | `blocked`, arrêt immédiat, pas de nouvelle tentative |
-| Résultats absents et secours Jev en échec | date `missing` + capture d'écran et snapshot sauvegardés dans `~/.skai/debug/<searchId>/` ; si toutes les dates échouent → `failed` |
+| Résultats absents et secours Jev en échec | date `missing` + capture d'écran sauvegardée dans `~/.skai/debug/<date>-<horodatage>.png` ; si toutes les dates échouent → `failed` |
 | Extraction < 80 % | recherche terminée + avertissement |
 | Redémarrage du serveur | recherches `running` passées en `failed` au démarrage |
 | Jev indisponible pendant le jugement | vols affichés sans verdict, avertissement |
