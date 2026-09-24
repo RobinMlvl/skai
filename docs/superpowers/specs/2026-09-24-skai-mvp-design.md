@@ -31,9 +31,10 @@ Toute l'interface est **en anglais**.
 | Serveur | Node 22 + **Hono** | Léger, tourne partout (Mac, Docker, Fly, VPS) ; client typé réutilisable par le web et un futur Expo. |
 | Web | **Vite + React**, mobile-first | Le serveur existe déjà (Hono) ; l'app est un client de l'API, comme le futur mobile. |
 | Navigateur | **Playwright** + Chrome installé, **profil dédié** `~/.skai/chrome-profile`, fenêtre visible | Isolé du Chrome perso ; Chrome ≥ 136 refuse le pilotage du profil par défaut. |
-| Agent | **Notre propre boucle Jev**, inspirée de `browser-use/jev-ultrafast` (MIT), **sans dépendance** à ce repo | Contrôle total ; pas de LLM texte : Jev choisit les valeurs à taper parmi les nôtres. |
-| IA | `@typesafe-ai/sdk` (Jev) | Choix typés + probabilités ; seule clé API requise : `TYPESAFE_API_KEY`. |
-| Stockage | **SQLite** via Drizzle + better-sqlite3 | 100 % local ; Drizzle permet de passer à Postgres à l'hébergement. |
+| Navigation | **URL construite par le code** (paramètre `tfs` encodé nous-mêmes : date + tous les aéroports) | Validé le 2026-09-24 : notre encodeur reproduit l'URL de Google à l'octet près, et une recherche multi-aéroports construite à la main renvoie de vrais résultats. Rapide, zéro appel Jev, peu de points de casse. |
+| Agent | **Jev en secours** : notre propre petite boucle, inspirée de `browser-use/jev-ultrafast` (MIT), **sans dépendance** à ce repo | Reprend la main seulement quand la page n'est pas celle attendue (pop-up imprévue, etc.). Jev juge aussi la phrase libre. |
+| IA | `@typesafe-ai/sdk` 0.6 (Jev) | Choix typés + probabilités ; seule clé API requise : `TYPESAFE_API_KEY`. |
+| Stockage | **SQLite** (better-sqlite3) derrière l'interface `SearchStore` | 100 % local ; l'interface est la frontière de portabilité vers Postgres. |
 | File de travail | En mémoire, **1 recherche à la fois** | Suffisant en local ; derrière une interface `JobQueue`. |
 | Temps réel | **SSE** depuis Hono | Natif navigateur ; utilisable par Expo plus tard. |
 | Style | Thème sombre « Skynet », globe à points **cobe**, **thinking-orbs** pour l'état de l'agent | Références visuelles de Robin (libraries.dev/orbs + globe à points). |
@@ -47,13 +48,13 @@ SkAI/                      (npm workspaces)
     parse-label.ts         libellé aria Google -> Itinerary
     traps.ts               règles anti-pièges
     frontier.ts            compromis prix/durée (front de Pareto)
-    tfs.ts                 lecture / remplacement de la date dans le paramètre tfs
+    tfs.ts                 encodage du paramètre tfs (date + aéroports) et de l'URL de recherche
   apps/server/
-    api/                   routes Hono + garde locale (Host, Origin, jeton)
+    api/                   routes Hono + garde locale (Host, Origin, en-tête X-SkAI)
     jobs/                  JobQueue en mémoire, ProgressBus (SSE)
-    store/                 SearchStore (Drizzle + SQLite)
-    browser/               session Playwright, consentement, détection de blocage
-    agent/                 boucle Jev : snapshot DOM -> décision -> action -> vérif
+    store/                 SearchStore (better-sqlite3)
+    browser/               session Playwright, consentement, détection de blocage, lecture des libellés
+    agent/                 boucle Jev de secours : snapshot DOM -> décision -> clic -> vérif
     sources/               FlightSource + GoogleFlightsSource
     judge/                 jugement de la préférence libre (Jev)
   apps/web/                Vite + React (anglais, mobile-first)
@@ -87,17 +88,18 @@ Hébergement futur : SQLite → Postgres, file en mémoire → pg-boss, ajout d'
 | POST | `/searches/:id/cancel` | annule (AbortSignal) |
 
 **Sécurité locale** (un serveur qui pilote Chrome ne doit pas être appelable par une page web
-quelconque) : écoute sur `127.0.0.1` uniquement ; en-tête `Host` limité à
-`127.0.0.1:<port>` / `localhost:<port>` ; `Origin` vérifié sur les requêtes qui modifient ;
-jeton aléatoire par lancement, exigé dans l'en-tête `X-SkAI-Token` (le serveur l'injecte
-dans la page qu'il sert ; en dev, Vite passe par un proxy).
+quelconque) : écoute sur `127.0.0.1` uniquement ; en-tête `Host` limité aux origines
+locales connues (anti DNS-rebinding) ; `Origin`, s'il est présent, limité aux mêmes origines ;
+en-tête personnalisé `X-SkAI: 1` exigé sur toute requête qui modifie (une page d'un autre site
+ne peut pas l'envoyer sans pré-requête CORS, que le serveur n'autorise jamais). En dev, Vite
+passe par un proxy vers le serveur.
 
 ## 5. Modèle de données
 
 ```ts
 SearchRequest {
-  origins: IATA[]          // 1..7, codes aéroport ou ville (ex. NYC)
-  destinations: IATA[]     // 1..7
+  origins: IATA[]          // 1..7 codes aéroport (pas de codes ville type NYC dans le MVP)
+  destinations: IATA[]     // 1..7, aucun code commun avec origins
   dateFrom: 'YYYY-MM-DD'   // pas dans le passé
   dateTo: 'YYYY-MM-DD'     // plage ≤ 31 jours
   settings: {
@@ -141,32 +143,27 @@ Seuls les jugements Jev (coûteux) sont stockés ; un vol non jugé s'affiche «
    { channel: 'chrome', headless: false, locale: 'en-US' })`, réutilisée entre les recherches.
 2. **Consentement** : si la page est `consent.google.com`, clic déterministe sur « Reject all »
    (option la plus respectueuse de la vie privée) ; à défaut, l'agent s'en charge.
-3. **Remplissage par Jev (une fois par recherche)** sur
-   `https://www.google.com/travel/flights?hl=en&curr=EUR`. À chaque tour :
-   - *snapshot* : script injecté listant les éléments interactifs visibles (index, rôle,
-     nom accessible, valeur, état coché/sélectionné/déplié) + extrait du texte visible ;
-   - *une requête Jev*, questions indépendantes en parallèle : `operation`
-     (CLICK / TYPE / SELECT / WAIT / DONE / BLOCKED), cible par opération (choix parmi
-     les index), et `typeValue` = **choix parmi nos valeurs candidates** (chaque code
-     IATA demandé, la date sous plusieurs formats) ;
-   - *exécution* Playwright après vérification que la page n'a pas changé (empreinte) ;
+3. **URL construite par le code** : pour chaque date de la plage, `buildTfs({ date, origins,
+   destinations })` encode le message protobuf de Google (structure relevée le 2026-09-24 :
+   champ 3 = trajet { 2 : date, 13 : départ { 1 : 1, 2 : code }, 14 : arrivée { 1 : 1, 2 : code } },
+   un champ 13/14 répété par aéroport ; 19 = 2 pour aller simple ; 8 = 1 adulte ; 9 = 1 Economy),
+   puis ouvre `https://www.google.com/travel/flights/search?tfs=…&hl=en&curr=EUR`.
+4. **Lecture d'une date** : consentement si besoin, détection de blocage, attente des
+   résultats (≤ 20 s), **vérification par le code** que la date affichée dans le champ
+   « Departure » correspond, dépliage de « more flights » si le bouton existe, lecture des
+   libellés. Pause de 2 s entre deux pages ; une nouvelle tentative par date, sinon date
+   « missing ».
+5. **Jev en secours** : si les résultats n'apparaissent pas (et que la page n'est pas un
+   blocage), une petite boucle Jev tente de revenir à la liste des vols. À chaque tour :
+   - *snapshot* : script injecté listant les éléments interactifs visibles (id, rôle, nom
+     accessible, valeur) + extrait du texte visible ;
+   - *une requête Jev*, deux questions indépendantes : `operation` (CLICK / WAIT / DONE /
+     BLOCKED) et `target` (choix parmi les id) ;
+   - *clic* Playwright seulement si la page n'a pas changé depuis le snapshot (empreinte) ;
    - éléments **retirés des choix** : nom correspondant à
-     `/select flight|book|continue|purchase|pay|sign in/i` ;
-   - budget : 40 actions ; arrêt si 3 actions de suite ne changent rien.
-
-   **Validation par le code, jamais par le DONE de Jev** : chemin
-   `/travel/flights/search`, paramètre `tfs` présent, date et aéroports demandés retrouvés
-   (dans `tfs` décodé ou dans les champs du formulaire).
-4. **Balayage des dates** : pour chaque date de la plage, `tfsForDate(tfs, date)` remplace
-   la date (10 octets ASCII, même longueur → structure protobuf intacte), ouvre
-   `/travel/flights/search?tfs=…&hl=en&curr=EUR`, attend les résultats (≤ 20 s), vérifie la
-   date affichée, déplie « more flights » si le bouton existe, lit les libellés.
-   Pause de 2 s entre deux pages ; une nouvelle tentative par date, sinon date « missing ».
-5. **Plans B** :
-   - date non appliquée par `tfs` → Jev change la date via l'interface (flèches jour suivant) ;
-   - remplissage multi-aéroports impossible → une URL par paire départ × arrivée
-     (`?q=Flights from GVA to BKK on 2026-11-10 one way`, format validé le 2026-09-24),
-     plus lent mais fiable.
+     `/select flight|book|continue|purchase|pay|sign in|accept all/i` ;
+   - budget : 8 actions. Le code revérifie ensuite lui-même la présence des résultats :
+     le DONE de Jev ne vaut jamais preuve.
 6. **Détection de blocage** après chaque navigation : URL contenant `/sorry/`, texte
    « unusual traffic » ou iframe reCAPTCHA → `BlockedError` → recherche `blocked`,
    **aucune nouvelle tentative**, l'utilisateur est prévenu.
@@ -181,8 +178,9 @@ Seuls les jugements Jev (coûteux) sont stockés ; un vol non jugé s'affiche «
    état. Requêtes en parallèle (5 max). Affichage : ≥ 0,7 « fits », ≤ 0,3 « doesn't fit »,
    sinon « unsure » (seuils à calibrer sur de vraies recherches).
 10. **Progression** (SSE) : `{ phase, message, dateIndex?, dateCount?, jevCalls }`.
-    Phases → états de l'orbe : `connecting`→connecting, `filling`→searching,
-    `sweeping`→working, `analyzing`→solving, `judging`→composing, repos→breathing.
+    Phases → états de l'orbe : `connecting`→connecting, `sweeping`→working,
+    `rescuing` (Jev en secours)→searching, `analyzing`→solving, `judging`→composing,
+    repos→breathing.
 
 ### Libellés réels observés (2026-09-24, base des tests d'extraction)
 
@@ -233,7 +231,7 @@ le prix et la durée. Entre deux voisins, l'écart est affiché : « +€40 to s
 |---|---|
 | Date en échec (timeout) | 1 nouvelle tentative, sinon `missing` → recherche `partial` avec la liste des dates manquantes |
 | Blocage Google | `blocked`, arrêt immédiat, pas de nouvelle tentative |
-| Agent en échec (BLOCKED, budget, validation) | plan B « une URL par paire » ; s'il échoue aussi → `failed` + capture d'écran et snapshot sauvegardés dans `~/.skai/debug/<searchId>/` |
+| Résultats absents et secours Jev en échec | date `missing` + capture d'écran et snapshot sauvegardés dans `~/.skai/debug/<searchId>/` ; si toutes les dates échouent → `failed` |
 | Extraction < 80 % | recherche terminée + avertissement |
 | Redémarrage du serveur | recherches `running` passées en `failed` au démarrage |
 | Jev indisponible pendant le jugement | vols affichés sans verdict, avertissement |
@@ -248,12 +246,20 @@ Aucune relance automatique d'une recherche entière.
   `packages/core/fixtures/` pour enrichir le corpus et repérer les changements de format.
 - **Agent** : sur une page HTML locale imitant le formulaire Google, avec des réponses Jev
   enregistrées (pas d'appel réseau).
-- **Serveur** : routes Hono (file et source simulées), garde locale (Host/Origin/jeton).
+- **Serveur** : routes Hono (file et source simulées), garde locale (Host/Origin/en-tête X-SkAI).
 - **Pas de test automatique contre Google** : un smoke manuel consolidé sur l'état final.
 
-## 11. Inconnues à lever en premier
+## 11. Inconnues
 
-1. Le remplacement de date dans `tfs` fonctionne-t-il ? (premier test en conditions réelles)
-2. Les codes aéroports sont-ils lisibles dans `tfs` décodé, ou faut-il valider via les champs ?
-3. Jev maîtrise-t-il le champ multi-aéroports (puces) de Google ? Sinon, plan B par paire.
-4. Forme exacte des questions Noul/Choice dans `@typesafe-ai/sdk` 0.6 (à lire dans les types du SDK).
+Levées le 2026-09-24 :
+- ✅ La date et les aéroports sont en clair dans `tfs` ; notre encodeur reproduit l'URL de
+  Google à l'octet près (`CBwQAhoeEgoyMDI2LTExLTExagcIARIDR1ZBcgcIARIDQktLQAFIAXABggELCP___________wGYAQI`
+  = GVA → BKK, 2026-11-11, aller simple).
+- ✅ Une URL multi-aéroports construite à la main fonctionne (GVA + ZRH → BKK + HKT).
+- ✅ API du SDK : `client.systemOne({ state, questions })`, `choice(instructions, criteria)`,
+  `noul(instructions, criteria?)` → `answers.x.choice / .probabilities / .noul`.
+
+Restantes :
+- Libellés exacts pour changement d'aéroport, billets séparés et escale de nuit (à collecter).
+- Nom exact du bouton « more flights » (à collecter avec le script de capture).
+- Limite réelle du nombre d'aéroports par champ côté Google (7 supposé).
