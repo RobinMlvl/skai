@@ -1,7 +1,7 @@
 import type { StoredItinerary } from "@skai/core";
 import type { Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { BookingBusyError, createBooker } from "../src/booking/booking";
+import { airlineSeller, BookingBusyError, createBooker } from "../src/booking/booking";
 import { BlockedError } from "../src/browser/page-state";
 import type { BrowserSession } from "../src/browser/session";
 import { escapeAttr, testSession } from "./browser-helpers";
@@ -75,6 +75,25 @@ describe("booking a flight on the airline's site", () => {
     expect(result).toEqual({ status: "airline", seller: "Etihad", url: "https://www.etihad.com/booking?row=1" });
   });
 
+  it("recognises an airline seller listed by fare class, without the word airline", async () => {
+    const icelandair = { ...target, airlines: ["Icelandair"] };
+    await serveAll(
+      site(
+        [etihad!.rawLabel],
+        [
+          "Continue to book with lastminute.com for 282 euros",
+          "Continue to book with Icelandair, Economy Light for 283 euros",
+          "Continue to book with Icelandair, Economy Standard for 323 euros",
+        ],
+      ),
+    );
+    expect(await booker()(request, icelandair)).toEqual({
+      status: "airline",
+      seller: "Icelandair",
+      url: "https://www.etihad.com/booking?row=0",
+    });
+  });
+
   it("stops on Google's booking options when no airline sells the flight", async () => {
     await serveAll(site([etihad!.rawLabel], [BRAVOFLY]));
     expect(await booker()(request, target)).toEqual({ status: "options" });
@@ -98,3 +117,14 @@ describe("booking a flight on the airline's site", () => {
     await expect(booker()(request, target)).rejects.toBeInstanceOf(BlockedError);
   });
 });
+
+describe("airlineSeller", () => {
+  it("reads the airline behind Google's seller labels", () => {
+    expect(airlineSeller("Continue to book with Etihad airline for 516 euros (Equivalent to 485 Swiss francs on Etihad)", [])).toBe("Etihad");
+    expect(airlineSeller("Continue to book with Icelandair, Economy Light for 283 euros", ["Icelandair"])).toBe("Icelandair");
+    expect(airlineSeller("Continue to book with Bravofly for 510 euros", ["Etihad"])).toBeNull();
+    expect(airlineSeller("Continue to book with lastminute.com for 282 euros", ["Icelandair"])).toBeNull();
+    expect(airlineSeller("Continue to book with SWISS for 1,204 euros", ["Swiss"])).toBe("SWISS");
+  });
+});
+

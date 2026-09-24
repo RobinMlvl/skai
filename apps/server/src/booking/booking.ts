@@ -39,7 +39,19 @@ export interface BookerOptions {
 }
 
 const SELLER = /^Continue to book with /i;
-const AIRLINE_SELLER = /^Continue to book with (.+?) airline\b/i;
+
+const fold = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+
+/**
+ * The seller behind a Google "Continue to book with …" label, when it is one of the flight's airlines.
+ * Seen live: "… with Etihad airline for 516 euros" and "… with Icelandair, Economy Light for 283 euros".
+ */
+export function airlineSeller(label: string, airlines: readonly string[]): string | null {
+  const name = label.replace(SELLER, "").split(/ for [\d,.]+ /)[0]!;
+  const seller = name.replace(/ airline$/i, "").split(",")[0]!.trim();
+  const isAirline = / airline$/i.test(name) || airlines.some((airline) => fold(airline) === fold(seller));
+  return isAirline && seller ? seller : null;
+}
 const STEP_MS = 250;
 
 const onGoogle = (page: Page) => new URL(page.url()).hostname.endsWith("google.com");
@@ -111,19 +123,21 @@ export function createBooker(options: BookerOptions): Booker {
       await assertNotBlocked(page);
       if (!first) return { status: "options" };
       await page.waitForTimeout(1_000);
-      const airline = (await readSellers(page)).map((label) => AIRLINE_SELLER.exec(label)).find((m) => m !== null);
-      if (!airline) return { status: "options" };
+      const sellers = await readSellers(page);
+      const label = sellers.find((candidate) => airlineSeller(candidate, itinerary.airlines) !== null);
+      if (!label) return { status: "options" };
+      const seller = airlineSeller(label, itinerary.airlines)!;
 
       // "Continue" opens the airline in a new tab (or, sometimes, in the same one).
       const popup = page.context().waitForEvent("page", { timeout: 15_000 });
       const sameTab = until(15_000, async () => (onGoogle(page) ? null : page)).then(
         (left) => left ?? Promise.reject(new Error("Google did not open the airline's site")),
       );
-      await page.getByRole("button", { name: airline.input, exact: true }).click({ timeout: 5_000 });
+      await page.getByRole("button", { name: label, exact: true }).click({ timeout: 5_000 });
       const tab = await Promise.any([popup, sameTab]);
       await until(15_000, async () => (onGoogle(tab) ? null : true)); // let Google's redirect reach the airline
       await tab.bringToFront();
-      return { status: "airline", seller: airline[1]!, url: tab.url() };
+      return { status: "airline", seller, url: tab.url() };
     } finally {
       busy = false;
     }
