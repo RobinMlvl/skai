@@ -161,7 +161,7 @@ Seuls les jugements Jev (coûteux) sont stockés ; un vol non jugé s'affiche «
      BLOCKED) et `target` (choix parmi les id) ;
    - *clic* Playwright seulement si la page n'a pas changé depuis le snapshot (empreinte) ;
    - éléments **retirés des choix** : nom correspondant à
-     `/select flight|book|continue|purchase|pay|sign in|accept all/i` ;
+     `/select flight|book|continue|purchase|pay|sign in|accept|agree|allow all/i`, testé dans la page sur le nom complet avant troncature ;
    - budget : 8 actions. Le code revérifie ensuite lui-même la présence des résultats :
      le DONE de Jev ne vaut jamais preuve.
 6. **Détection de blocage** après chaque navigation : URL contenant `/sorry/`, texte

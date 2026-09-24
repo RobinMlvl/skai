@@ -159,6 +159,15 @@ describe("rescue", () => {
     expect(jev.calls).toBe(1);
   });
 
+  it("never asks Jev about a page outside www.google.com", async () => {
+    await serve(page, `<button>Show flights</button>`);
+    await page.goto("https://partner.example.test/deal");
+    const jev = fakeJev(() => decide("WAIT"));
+    const result = await rescue(page, jev, { goal: "Show the results" });
+    expect(result.outcome).toBe("blocked");
+    expect(jev.calls).toBe(0);
+  });
+
   it("does not click when the page changed while Jev was deciding", async () => {
     await openDialogPage();
     const jev = fakeJev(async (state: RescueState, _questions, call) => {

@@ -138,6 +138,14 @@ describe("parseLabel on labels captured live on 2026-09-24 (GVA,ZRH → BKK,HKT,
     expect(it2.durationMin).toBe(1365);
   });
 
+  it("keeps abbreviations in the airport a transfer goes to", () => {
+    const label =
+      "From 420 euros. 1 stop flight with American. Leaves Geneva Airport at 9:00 AM on Sunday, November 15 and arrives at Havana Airport at 9:00 PM on Sunday, November 15. Total duration 18 hr.  Layover (1 of 1) is a 4 hr layover in Miami. Transfer here from Miami International Airport to Ft. Lauderdale-Hollywood International Airport. Carbon emissions estimate: 700 kilograms. Select flight";
+    expect(parseLabel(label, "2026-11-15")!.layovers[0]!.airport).toBe(
+      "Miami International Airport → Ft. Lauderdale-Hollywood International Airport",
+    );
+  });
+
   it("ignores the carbon estimate sentence", () => {
     const label =
       "From 333 euros. 1 stop flight with Etihad. Leaves Zurich Airport at 10:30 AM on Sunday, November 15 and arrives at Phuket International Airport at 6:15 AM on Monday, November 16. Total duration 13 hr 45 min.  Layover (1 of 1) is a 1 hr 20 min layover at Zayed International Airport in Abu Dhabi. Carbon emissions estimate: 691 kilograms. Select flight";

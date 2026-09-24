@@ -15,7 +15,7 @@ const MAIN = new RegExp(
 );
 // "… layover at <airport> in <city>." or, when changing airports, "… layover in <city>. Transfer here from <a> to <b>."
 const LAYOVER = /^Layover \(\d+ of \d+\) is a (.+?) (overnight )?layover (?:at (.+?) in (.+)|in (.+))$/;
-const TRANSFER = /Transfer here from (.+?) to (.+?)\./;
+const TRANSFER = /Transfer here from (.+?) to (.+)$/;
 // Real wording captured on 2026-09-24.
 const AIRPORT_CHANGE = /Transfer here from /;
 // Assumed wording: no separate-ticket label captured yet.
@@ -71,7 +71,7 @@ function parseLayovers(rest: string): Layover[] | null {
     if (durationMin === null) return null;
     const city = firstSentence(match[4] ?? match[5]!);
     const transfer = TRANSFER.exec(chunk);
-    const airport = transfer ? `${transfer[1]} → ${transfer[2]}` : (match[3] ?? city);
+    const airport = transfer ? `${transfer[1]} → ${firstSentence(transfer[2]!)}` : (match[3] ?? city);
     layovers.push({ durationMin, airport, city, overnight: Boolean(match[2]) });
   }
   return layovers;

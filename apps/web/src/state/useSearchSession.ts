@@ -60,7 +60,16 @@ export function useSearchSession(): SearchSession {
         setDetail(found);
         push(finishedEvent(found));
         refreshHistory();
-      }, resubscribeLater);
+      }, (e: unknown) => {
+        if (stopped) return;
+        // The search no longer exists: stop instead of retrying forever.
+        if (messageOf(e) === "Search not found") {
+          setError("This search no longer exists.");
+          push({ phase: "finished", message: "Search not found", jevCalls: 0, at: new Date().toISOString() });
+          return;
+        }
+        resubscribeLater();
+      });
     };
     const subscribe = () => {
       unsubscribe = subscribeProgress(
@@ -87,6 +96,7 @@ export function useSearchSession(): SearchSession {
     async (input: SearchRequestInput) => {
       setError(null);
       setDetail(null);
+      setEvents([]);
       setStarting(true); // keeps the form disabled until the search exists (no double submit)
       try {
         const { id } = await createSearch(input);

@@ -39,6 +39,8 @@ export async function rescue(
 
   for (let step = 0; step < maxSteps; step++) {
     options.signal?.throwIfAborted();
+    // Never act on another site, including after a navigation that committed late.
+    if (new URL(page.url()).hostname !== "www.google.com") return { outcome: "blocked", steps };
     const snapshot = await takeSnapshot(page);
     // Second line: the snapshot already skipped forbidden elements in the page.
     const elements = snapshot.elements.filter((element) => !FORBIDDEN_TARGET.test(element.name));
@@ -86,8 +88,6 @@ export async function rescue(
       continue; // the element was re-rendered or covered: look again
     }
     await page.waitForTimeout(500);
-    // Never keep clicking on another site.
-    if (new URL(page.url()).hostname !== "www.google.com") return { outcome: "blocked", steps };
   }
   return { outcome: "exhausted", steps };
 }
