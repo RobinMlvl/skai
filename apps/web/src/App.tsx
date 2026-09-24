@@ -1,7 +1,9 @@
 import { useCallback, useState } from "react";
 import { ThinkingOrb } from "thinking-orbs";
 import { Globe } from "./components/Globe";
+import { History } from "./components/History";
 import { LivePanel } from "./components/LivePanel";
+import { ResultsView } from "./components/ResultsView";
 import { SearchForm } from "./components/SearchForm";
 import { orbState } from "./lib/orb-state";
 import { useSearchSession } from "./state/useSearchSession";
@@ -28,12 +30,14 @@ export function App() {
         <section className="left">
           <SearchForm disabled={session.running} onSubmit={session.start} onSelectionChange={onSelectionChange} />
           {session.error && <p className="error" role="alert">{session.error}</p>}
+          <History items={session.history} activeId={session.detail?.search.id ?? null} onOpen={session.open} />
         </section>
         <section className="right">
           <Globe origins={shown.origins} destinations={shown.destinations} active={session.running} />
           {session.events.length > 0 && (
             <LivePanel events={session.events} running={session.running} onCancel={session.cancel} />
           )}
+          {session.detail && <ResultsView detail={session.detail} />}
         </section>
       </main>
     </div>
