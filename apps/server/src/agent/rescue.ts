@@ -1,10 +1,7 @@
 import { choice } from "@typesafe-ai/sdk";
 import type { Page } from "playwright";
 import { toEntry, type Jev } from "../jev";
-import { takeSnapshot } from "./snapshot";
-
-/** Never offered to Jev: SkAI must not select, book, pay, sign in or accept tracking. */
-export const FORBIDDEN_TARGET = /select flight|book|continue|purchase|pay|sign in|accept all/i;
+import { FORBIDDEN_TARGET, takeSnapshot } from "./snapshot";
 
 const OPERATION = choice(
   "A script needs to reach a Google Flights results list and something is in the way. " +
@@ -43,6 +40,7 @@ export async function rescue(
   for (let step = 0; step < maxSteps; step++) {
     options.signal?.throwIfAborted();
     const snapshot = await takeSnapshot(page);
+    // Second line: the snapshot already skipped forbidden elements in the page.
     const elements = snapshot.elements.filter((element) => !FORBIDDEN_TARGET.test(element.name));
     if (elements.length === 0) {
       steps.push({ operation: "WAIT", target: null, targetName: null, confidence: 1 });

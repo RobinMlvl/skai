@@ -1,10 +1,10 @@
 import type { Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { FORBIDDEN_TARGET, rescue } from "../src/agent/rescue";
-import { takeSnapshot } from "../src/agent/snapshot";
+import { rescue } from "../src/agent/rescue";
+import { FORBIDDEN_TARGET, takeSnapshot } from "../src/agent/snapshot";
 import { readResultLabels } from "../src/browser/page-state";
 import type { BrowserSession } from "../src/browser/session";
-import { serve, testSession } from "./browser-helpers";
+import { escapeAttr, serve, testSession } from "./browser-helpers";
 import { choiceAnswer, fakeJev } from "./fake-jev";
 import { FIXTURE } from "./helpers";
 
@@ -35,6 +35,16 @@ const dialogPage = `<!doctype html><html><body>
       div.setAttribute("aria-label", ${JSON.stringify(FIXTURE.labels[0])});
       document.getElementById("results").append(div);
     });
+  </script>
+</body></html>`;
+
+// A real result row: Google renders it as a link whose label ends with "Select flight", far past 120 chars.
+const flightRowPage = `<!doctype html><html><body>
+  <button id="dismiss">No thanks</button>
+  <div role="link" id="row" aria-label="${escapeAttr(FIXTURE.labels[0]!)}">flight</div>
+  <script>
+    window.picked = 0;
+    document.getElementById("row").addEventListener("click", () => { window.picked += 1; });
   </script>
 </body></html>`;
 
@@ -69,6 +79,19 @@ describe("takeSnapshot", () => {
     await page.evaluate(() => document.body.insertAdjacentHTML("beforeend", "<button>New</button>"));
     expect((await takeSnapshot(page)).fingerprint).not.toBe(first.fingerprint);
   });
+
+  it("skips an element whose full name is forbidden, even past the displayed 120 chars", async () => {
+    await serve(page, flightRowPage);
+    await page.goto("https://www.google.com/travel/flights?snap=2");
+    const snapshot = await takeSnapshot(page);
+    expect(snapshot.elements).toEqual([{ id: "e1", role: "button", name: "No thanks", value: null }]);
+    expect(await page.locator("#row[data-skai-id]").count()).toBe(0);
+  });
+
+  it("forbids consent variants that accept tracking, but not Reject all", () => {
+    for (const name of ["Accept all", "Accept", "I agree", "Allow all cookies"]) expect(FORBIDDEN_TARGET.test(name)).toBe(true);
+    expect(FORBIDDEN_TARGET.test("Reject all")).toBe(false);
+  });
 });
 
 describe("rescue", () => {
@@ -89,6 +112,22 @@ describe("rescue", () => {
     expect(await readResultLabels(page)).toHaveLength(1);
     expect(offered.filter((name) => FORBIDDEN_TARGET.test(name))).toEqual([]);
     expect(offered).toContain("No thanks");
+  });
+
+  it("never offers or clicks a flight row whose label is longer than the displayed name", async () => {
+    await serve(page, flightRowPage);
+    await page.goto("https://www.google.com/travel/flights/search?rescue=2");
+    const offered: string[] = [];
+    // A careless Jev: it clicks anything that looks like a flight.
+    const jev = fakeJev((state: RescueState) => {
+      offered.push(...state.elements.map((e) => e.name));
+      const flight = state.elements.find((e) => e.name.startsWith("From "));
+      return flight ? decide("CLICK", flight.id) : decide("DONE");
+    });
+    await rescue(page, jev, { goal: "Show the results", maxSteps: 2 });
+    expect(await page.evaluate(() => (window as unknown as { picked: number }).picked)).toBe(0);
+    expect(jev.calls).toBeGreaterThan(0);
+    expect(offered).toEqual(["No thanks"]);
   });
 
   it("stops after maxSteps when Jev keeps waiting", async () => {
