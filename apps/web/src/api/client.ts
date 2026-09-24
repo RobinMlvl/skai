@@ -1,6 +1,7 @@
 import type { ProgressEvent, SearchDetail, SearchRecord, SearchRequestInput } from "@skai/core";
 
 const MUTATION_HEADERS = { "content-type": "application/json", "x-skai": "1" };
+const STREAM_SILENCE_MS = 30_000;
 
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -33,14 +34,29 @@ export function subscribeProgress(
   onError: () => void,
 ): () => void {
   const source = new EventSource(`/api/searches/${id}/events`);
+  // The server writes at least a "ping" every 15 s. A proxy can keep a dead stream open without
+  // ever raising "error" (seen live with Vite when the API restarts), so silence counts as an error.
+  let lastMessageAt = Date.now();
+  const stop = () => {
+    clearInterval(watchdog);
+    source.close();
+  };
+  const fail = () => {
+    stop();
+    onError();
+  };
+  const watchdog = setInterval(() => {
+    if (Date.now() - lastMessageAt > STREAM_SILENCE_MS) fail();
+  }, 5_000);
+  source.addEventListener("ping", () => {
+    lastMessageAt = Date.now();
+  });
   source.addEventListener("progress", (message) => {
+    lastMessageAt = Date.now();
     const event = JSON.parse((message as MessageEvent<string>).data) as ProgressEvent;
     onEvent(event);
-    if (event.phase === "finished") source.close();
+    if (event.phase === "finished") stop();
   });
-  source.addEventListener("error", () => {
-    source.close();
-    onError();
-  });
-  return () => source.close();
+  source.addEventListener("error", fail);
+  return stop;
 }
