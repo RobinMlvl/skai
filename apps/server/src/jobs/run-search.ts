@@ -15,7 +15,7 @@ export interface RunnerDeps {
   now: () => string;
 }
 
-const FINISH_MESSAGES: Record<SearchStatus, string> = {
+export const FINISH_MESSAGES: Record<SearchStatus, string> = {
   queued: "Queued",
   running: "Running",
   done: "Scan complete",

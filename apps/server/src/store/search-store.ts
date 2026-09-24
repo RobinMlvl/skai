@@ -22,7 +22,8 @@ export interface SearchStore {
   finish(id: string, status: SearchStatus, stats: SearchStats, error: string | null): void;
   get(id: string): SearchDetail | null;
   list(limit: number): SearchRecord[];
-  failInterrupted(): number;
+  /** Marks queued and running searches failed, with a finished progress event dated `now`. */
+  failInterrupted(now: string): number;
   close(): void;
 }
 
@@ -100,7 +101,11 @@ export function openSqliteStore(file: string): SearchStore {
   );
   const selectRecent = db.prepare("SELECT * FROM searches ORDER BY created_at DESC LIMIT ?");
   const failOpen = db.prepare(
-    "UPDATE searches SET status = 'failed', error = 'Server restarted during the search' WHERE status IN ('queued', 'running')",
+    `UPDATE searches
+        SET status = 'failed', error = @message, phase = 'finished',
+            progress = json_object('phase', 'finished', 'message', @message,
+                                   'jevCalls', coalesce(json_extract(progress, '$.jevCalls'), 0), 'at', @now)
+      WHERE status IN ('queued', 'running')`,
   );
 
   const saveItineraries = db.transaction((searchId: string, items: readonly Itinerary[]) =>
@@ -131,7 +136,7 @@ export function openSqliteStore(file: string): SearchStore {
       return { search: toRecord(row), itineraries, judgments };
     },
     list: (limit) => (selectRecent.all(limit) as SearchRow[]).map(toRecord),
-    failInterrupted: () => failOpen.run().changes,
+    failInterrupted: (now) => failOpen.run({ message: "Server restarted during the search", now }).changes,
     close: () => db.close(),
   };
 }

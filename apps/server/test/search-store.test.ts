@@ -56,15 +56,23 @@ describe("SqliteSearchStore", () => {
     expect(search.stats?.jevCalls).toBe(3);
   });
 
-  it("marks queued and running searches as failed after a restart", () => {
+  it("marks queued and running searches as failed and finished after a restart", () => {
     store.create("a", sampleRequest(), "2026-09-24T10:00:00.000Z");
     store.create("b", sampleRequest(), "2026-09-24T10:01:00.000Z");
     store.create("c", sampleRequest(), "2026-09-24T10:02:00.000Z");
     store.setStatus("b", "running");
+    store.setProgress("b", { ...progress("sweeping", "Scanning 2026-11-10"), jevCalls: 3 });
     store.finish("c", "done", emptyStats(), null);
-    expect(store.failInterrupted()).toBe(2);
+    store.setProgress("c", progress("finished", "Scan complete"));
+    expect(store.failInterrupted("2026-09-24T11:00:00.000Z")).toBe(2);
     expect(store.get("a")!.search).toMatchObject({ status: "failed", error: "Server restarted during the search" });
-    expect(store.get("c")!.search.status).toBe("done");
+    expect(store.get("b")!.search).toMatchObject({
+      status: "failed",
+      phase: "finished",
+      progress: { phase: "finished", message: "Server restarted during the search", jevCalls: 3, at: "2026-09-24T11:00:00.000Z" },
+    });
+    expect(store.get("a")!.search.progress).toMatchObject({ phase: "finished", jevCalls: 0 });
+    expect(store.get("c")!.search).toMatchObject({ status: "done", progress: { message: "Scan complete" } });
   });
 
   it("returns null for unknown searches", () => {

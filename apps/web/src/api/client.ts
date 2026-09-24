@@ -23,13 +23,24 @@ export const cancelSearch = async (id: string) => {
   await fetch(`/api/searches/${id}/cancel`, { method: "POST", headers: { "x-skai": "1" } });
 };
 
-/** Streams progress; closes itself after "finished" (otherwise EventSource would reconnect forever). */
-export function subscribeProgress(id: string, onEvent: (event: ProgressEvent) => void): () => void {
+/**
+ * Streams progress; closes itself after "finished" (otherwise EventSource would reconnect forever)
+ * and on the first error, which it reports so the caller decides whether to subscribe again.
+ */
+export function subscribeProgress(
+  id: string,
+  onEvent: (event: ProgressEvent) => void,
+  onError: () => void,
+): () => void {
   const source = new EventSource(`/api/searches/${id}/events`);
   source.addEventListener("progress", (message) => {
     const event = JSON.parse((message as MessageEvent<string>).data) as ProgressEvent;
     onEvent(event);
     if (event.phase === "finished") source.close();
+  });
+  source.addEventListener("error", () => {
+    source.close();
+    onError();
   });
   return () => source.close();
 }

@@ -14,6 +14,28 @@ const post = (path: string, payload?: unknown, headers: Record<string, string> =
   body: payload === undefined ? undefined : JSON.stringify(payload),
 });
 
+/** Reads an SSE response until the server ends it, or cancels it after `ms`. */
+async function readStream(res: Response, ms = 1_000) {
+  const reader = res.body!.getReader();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    void reader.cancel();
+  }, ms);
+  let text = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    text += new TextDecoder().decode(value);
+  }
+  clearTimeout(timer);
+  const events = text
+    .split("\n")
+    .filter((line) => line.startsWith("data: {"))
+    .map((line) => JSON.parse(line.slice(6)) as ProgressEvent);
+  return { events, ended: !timedOut };
+}
+
 let store: SearchStore;
 let bus: ProgressBus;
 type CancelResult = ReturnType<JobQueue["cancel"]>;
@@ -142,5 +164,25 @@ describe("progress stream", () => {
     store.setProgress("s1", { phase: "finished", message: "Scan complete", jevCalls: 0, at: NOW });
     const text = await (await app.request(`${BASE}/searches/s1/events`)).text();
     expect(text).toContain('"phase":"finished"');
+  });
+
+  it("ends with finished for a search interrupted by a server restart", async () => {
+    await app.request(`${BASE}/searches`, post("/searches", body));
+    store.setStatus("s1", "running");
+    store.setProgress("s1", { phase: "sweeping", message: "Scanning 2026-11-10", jevCalls: 0, at: NOW });
+    store.failInterrupted(NOW);
+    const { events, ended } = await readStream(await app.request(`${BASE}/searches/s1/events`));
+    expect(ended).toBe(true);
+    expect(events.at(-1)).toMatchObject({ phase: "finished", message: "Server restarted during the search" });
+  });
+
+  it("adds a finished event and ends for a terminal search whose stored progress is not finished", async () => {
+    await app.request(`${BASE}/searches`, post("/searches", body));
+    store.setProgress("s1", { phase: "sweeping", message: "Scanning 2026-11-10", jevCalls: 2, at: NOW });
+    store.finish("s1", "failed", { datesOk: 0, datesMissing: [], labelsRead: 0, labelsUnparsed: 0, jevCalls: 2, durationMs: 1, warnings: [] }, "Server restarted during the search");
+    const { events, ended } = await readStream(await app.request(`${BASE}/searches/s1/events`));
+    expect(ended).toBe(true);
+    expect(events.map((e) => e.phase)).toEqual(["sweeping", "finished"]);
+    expect(events[1]).toMatchObject({ message: "Scan failed", jevCalls: 2, at: NOW });
   });
 });

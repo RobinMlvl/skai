@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { JobQueue } from "../jobs/job-queue";
 import type { ProgressBus } from "../jobs/progress-bus";
+import { FINISH_MESSAGES } from "../jobs/run-search";
 import type { SearchStore } from "../store/search-store";
 import { localGuard } from "./guard";
 
@@ -78,7 +79,19 @@ export function createApp(deps: AppDeps) {
         if (search.progress) {
           await stream.writeSSE({ event: "progress", data: JSON.stringify(search.progress) });
         }
-        if (isTerminal(search.status) && search.progress?.phase === "finished") return;
+        // A terminal search never waits for events: it ends with a finished event, stored or added here.
+        if (isTerminal(search.status)) {
+          if (search.progress?.phase !== "finished") {
+            const finished: ProgressEvent = {
+              phase: "finished",
+              message: FINISH_MESSAGES[search.status],
+              jevCalls: search.progress?.jevCalls ?? 0,
+              at: deps.now(),
+            };
+            await stream.writeSSE({ event: "progress", data: JSON.stringify(finished) });
+          }
+          return;
+        }
         while (!stream.aborted) {
           const next = pending.shift();
           if (!next) {

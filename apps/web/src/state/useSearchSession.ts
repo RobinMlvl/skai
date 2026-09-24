@@ -15,6 +15,18 @@ export interface SearchSession {
 }
 
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const RESUBSCRIBE_MS = 2_000;
+
+/** The stored finished event, or one made up for a search that ended without it. */
+const finishedEvent = ({ search }: SearchDetail): ProgressEvent =>
+  search.progress?.phase === "finished"
+    ? search.progress
+    : {
+        phase: "finished",
+        message: search.error ?? `Search ${search.status}`,
+        jevCalls: search.progress?.jevCalls ?? 0,
+        at: new Date().toISOString(),
+      };
 
 export function useSearchSession(): SearchSession {
   const [history, setHistory] = useState<SearchRecord[]>([]);
@@ -32,13 +44,42 @@ export function useSearchSession(): SearchSession {
   useEffect(() => {
     if (!liveId) return;
     setEvents([]);
-    return subscribeProgress(liveId, (event) => {
-      setEvents((previous) => [...previous.slice(-49), event]);
-      if (event.phase === "finished") {
-        getSearch(liveId).then(setDetail, (e: unknown) => setError(messageOf(e)));
+    let stopped = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    let unsubscribe = () => {};
+    const push = (event: ProgressEvent) => setEvents((previous) => [...previous.slice(-49), event]);
+    const resubscribeLater = () => {
+      if (!stopped) retry = setTimeout(subscribe, RESUBSCRIBE_MS);
+    };
+    // The stream broke (server restart, proxy error): a search that ended meanwhile ends here too.
+    const recover = () => {
+      getSearch(liveId).then((found) => {
+        if (stopped) return;
+        if (!isTerminal(found.search.status)) return resubscribeLater();
+        setDetail(found);
+        push(finishedEvent(found));
         refreshHistory();
-      }
-    });
+      }, resubscribeLater);
+    };
+    const subscribe = () => {
+      unsubscribe = subscribeProgress(
+        liveId,
+        (event) => {
+          push(event);
+          if (event.phase === "finished") {
+            getSearch(liveId).then(setDetail, (e: unknown) => setError(messageOf(e)));
+            refreshHistory();
+          }
+        },
+        recover,
+      );
+    };
+    subscribe();
+    return () => {
+      stopped = true;
+      clearTimeout(retry);
+      unsubscribe();
+    };
   }, [liveId, refreshHistory]);
 
   const start = useCallback(

@@ -17,14 +17,14 @@ import { openSqliteStore } from "./store/search-store";
 const config = loadConfig(process.env);
 mkdirSync(config.dataDir, { recursive: true });
 
+const now = () => new Date().toISOString();
 const store = openSqliteStore(join(config.dataDir, "skai.db"));
-const interrupted = store.failInterrupted();
+const interrupted = store.failInterrupted(now());
 if (interrupted > 0) console.warn(`[skai] ${interrupted} interrupted search(es) marked as failed`);
 
 const jev = config.typesafeApiKey ? createJev(new TypeSafeClient({ apiKey: config.typesafeApiKey })) : null;
 if (!jev) console.warn("[skai] TYPESAFE_API_KEY is not set: Jev rescue and preference checks are disabled");
 
-const now = () => new Date().toISOString();
 const bus = createProgressBus();
 const session = createBrowserSession({ profileDir: join(config.dataDir, "chrome-profile") });
 const source = createGoogleFlightsSource({ session, jev, debugDir: join(config.dataDir, "debug") });
