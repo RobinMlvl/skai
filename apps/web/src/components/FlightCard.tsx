@@ -18,7 +18,12 @@ export function FlightCard({ row, probability }: { row: AnalyzedItinerary; proba
           <span className="mono">{it.departure.time}</span> {it.departure.airport} →{" "}
           <span className="mono">
             {it.arrival.time}
-            {it.arrival.dayOffset > 0 && <sup>+{it.arrival.dayOffset}</sup>}
+            {it.arrival.dayOffset !== 0 && (
+              <sup>
+                {it.arrival.dayOffset > 0 ? "+" : "−"}
+                {Math.abs(it.arrival.dayOffset)}
+              </sup>
+            )}
           </span>{" "}
           {it.arrival.airport}
         </div>

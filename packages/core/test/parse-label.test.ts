@@ -82,6 +82,13 @@ describe("parseLabel on format variants", () => {
     expect(parseLabel(label, "2026-12-31")!.arrival.dayOffset).toBe(1);
   });
 
+  it("reads an arrival on the previous day (date line) as -1, also across New Year", () => {
+    const label = (dep: string, arr: string) =>
+      `From 700 euros. Nonstop flight with Air Tahiti Nui. Leaves Auckland Airport at 4:00 PM on ${dep} and arrives at Faa'a International Airport at 10:40 PM on ${arr}. Total duration 5 hr 40 min. Select flight`;
+    expect(parseLabel(label("Tuesday, November 10", "Monday, November 9"), "2026-11-10")!.arrival.dayOffset).toBe(-1);
+    expect(parseLabel(label("Friday, January 1", "Thursday, December 31"), "2027-01-01")!.arrival.dayOffset).toBe(-1);
+  });
+
   it("flags separate tickets (assumed wording, not yet seen in a real label)", () => {
     const label =
       "From 199 euros. 1 stop flight with Ryanair and easyJet. Leaves Geneva Airport at 6:00 AM on Sunday, September 20 and arrives at Lisbon Airport at 4:00 PM on Sunday, September 20. Total duration 11 hr. Layover (1 of 1) is a 4 hr layover at London Stansted Airport in London. Self transfer. Select flight";

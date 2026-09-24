@@ -87,14 +87,15 @@ export function parseLabel(label: string, date: string): Itinerary | null {
   const stops = g.stops === "Nonstop" ? 0 : Number.parseInt(g.stops!, 10);
   if (durationMin === null || layovers === null || layovers.length !== stops) return null;
 
+  // Google's departure day is the searched date; only the arrival can fall in another year.
   const year = Number(date.slice(0, 4));
-  let departureIso = isoFor(g.depDay!, year);
-  if (!departureIso) return null;
-  if (daysBetween(date, departureIso) < -300) departureIso = isoFor(g.depDay!, year + 1)!;
-  const departureYear = Number(departureIso.slice(0, 4));
-  let arrivalIso = isoFor(g.arrDay!, departureYear);
-  if (!arrivalIso) return null;
-  if (arrivalIso < departureIso) arrivalIso = isoFor(g.arrDay!, departureYear + 1)!;
+  const departureIso = isoFor(g.depDay!, year);
+  let arrivalIso = isoFor(g.arrDay!, year);
+  if (!departureIso || !arrivalIso) return null;
+  // Dec 31 → Jan 1 lands next year; Jan 1 → Dec 31 (date line, eastbound) lands the previous year.
+  const offset = daysBetween(departureIso, arrivalIso);
+  if (offset < -300) arrivalIso = isoFor(g.arrDay!, year + 1)!;
+  else if (offset > 300) arrivalIso = isoFor(g.arrDay!, year - 1)!;
 
   return {
     date,
