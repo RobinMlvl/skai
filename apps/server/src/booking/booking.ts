@@ -2,6 +2,7 @@ import {
   flightIdentity,
   RESULT_LABEL_SOURCE,
   searchUrl,
+  type BookingResult,
   type SearchRequest,
   type StoredItinerary,
   type TfsInput,
@@ -21,11 +22,6 @@ import type { BrowserSession } from "../browser/session";
  * Opens the booking of one flight, only when the user clicks its card: SkAI selects that flight on
  * Google and continues to the airline's own site. It never fills anything in and never pays.
  */
-export type BookingResult =
-  | { status: "airline"; seller: string; url: string } // the airline's site is open in SkAI's window
-  | { status: "options" } // no airline sells it: Google's booking options are open for the user
-  | { status: "not-found" }; // Google no longer lists this flight: its results are open
-
 export type Booker = (request: SearchRequest, itinerary: StoredItinerary) => Promise<BookingResult>;
 
 export class BookingBusyError extends Error {
@@ -73,7 +69,9 @@ async function clickFlight(page: Page, itinerary: StoredItinerary): Promise<bool
     { source: RESULT_LABEL_SOURCE, indices },
   );
   if (!tagged) return false;
-  await page.locator('[data-skai-book="1"]').first().click({ timeout: 5_000 });
+  // On Google the labelled row sits under its visible content (same click handler), which
+  // intercepts a mouse click: fire the click on the row itself. It only navigates, no popup.
+  await page.locator('[data-skai-book="1"]').first().evaluate((row) => (row as HTMLElement).click());
   return true;
 }
 

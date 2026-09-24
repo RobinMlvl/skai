@@ -18,7 +18,7 @@ block page, the scan stops; SkAI never retries or bypasses it.
 
 - Separate tickets (self-transfer) and overnight layovers are not detected until a real Google
   label showing them is captured, so "Hide separate tickets" has no effect yet.
-- The web app's dev proxy expects the API on port 4317; changing `SKAI_PORT` breaks it.
+- Ports: the API uses `SKAI_PORT` (4317) and the web app `SKAI_WEB_PORT` (5173); set both in the shell to run a second copy.
 - Stop the server before running `npm run capture -w @skai/server`: both use the same Chrome profile,
   which Chrome locks.
 - The airport list only holds large and medium airports with scheduled service; smaller airports

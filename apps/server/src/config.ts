@@ -17,7 +17,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     port,
     dataDir: expandHome(env.SKAI_DATA_DIR?.trim() || "~/.skai"),
     typesafeApiKey: env.TYPESAFE_API_KEY?.trim() || null,
-    webDevPort: 5173,
+    webDevPort: Number(env.SKAI_WEB_PORT ?? 5173),
   };
 }
 

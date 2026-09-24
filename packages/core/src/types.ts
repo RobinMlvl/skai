@@ -90,3 +90,9 @@ export interface SearchDetail {
   itineraries: StoredItinerary[];
   judgments: Judgment[];
 }
+
+/** What happened when the user asked to book a flight (POST /api/itineraries/:id/book). */
+export type BookingResult =
+  | { status: "airline"; seller: string; url: string } // the airline's site, flight pre-selected
+  | { status: "options" } // no airline sells it: Google's booking options are open
+  | { status: "not-found" }; // Google no longer lists this flight: its results are open

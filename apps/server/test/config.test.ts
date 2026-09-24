@@ -16,3 +16,12 @@ it("reads overrides and trims the key", () => {
 it("rejects an invalid port", () => {
   expect(() => loadConfig({ SKAI_PORT: "abc" })).toThrow("Invalid SKAI_PORT");
 });
+
+it("reads the web dev port", () => {
+  expect(allowedHosts(loadConfig({ SKAI_PORT: "4400", SKAI_WEB_PORT: "5200" }))).toEqual([
+    "127.0.0.1:4400",
+    "localhost:4400",
+    "127.0.0.1:5200",
+    "localhost:5200",
+  ]);
+});
