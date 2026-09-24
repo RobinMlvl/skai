@@ -80,8 +80,14 @@ export async function rescue(
     }
     // The decision is only valid for the page Jev saw.
     if ((await takeSnapshot(page)).fingerprint !== snapshot.fingerprint) continue;
-    await page.locator(`[data-skai-id="${element.id}"]`).click({ timeout: 3_000 });
+    try {
+      await page.locator(`[data-skai-id="${element.id}"]`).click({ timeout: 3_000 });
+    } catch {
+      continue; // the element was re-rendered or covered: look again
+    }
     await page.waitForTimeout(500);
+    // Never keep clicking on another site.
+    if (new URL(page.url()).hostname !== "www.google.com") return { outcome: "blocked", steps };
   }
   return { outcome: "exhausted", steps };
 }

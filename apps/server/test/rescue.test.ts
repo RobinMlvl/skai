@@ -144,6 +144,21 @@ describe("rescue", () => {
     expect(result.outcome).toBe("blocked");
   });
 
+  it("stops as blocked once a click leaves www.google.com", async () => {
+    await serve(page, (url) =>
+      url.hostname === "www.google.com"
+        ? `<a href="https://partner.example.test/deal">Cheap deals</a>`
+        : `<button>Show flights</button>`,
+    );
+    await page.goto("https://www.google.com/travel/flights/search?rescue=3");
+    // Jev clicks whatever it is offered first.
+    const jev = fakeJev((state: RescueState) => decide("CLICK", state.elements[0]?.id ?? "none"));
+    const result = await rescue(page, jev, { goal: "Show the results" });
+    expect(new URL(page.url()).hostname).toBe("partner.example.test");
+    expect(result.outcome).toBe("blocked");
+    expect(jev.calls).toBe(1);
+  });
+
   it("does not click when the page changed while Jev was deciding", async () => {
     await openDialogPage();
     const jev = fakeJev(async (state: RescueState, _questions, call) => {

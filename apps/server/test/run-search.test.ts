@@ -86,6 +86,17 @@ describe("search runner", () => {
     expect(detail.search.status).toBe("cancelled");
   });
 
+  it("records a cancellation that lands while the last date is still being read", async () => {
+    const controller = new AbortController();
+    const source = sourceOf(async () => {
+      controller.abort(new Error("Cancelled by the user"));
+      return { dates: [ok("2026-11-10"), ok("2026-11-11")] };
+    });
+    const detail = await runSearch(sampleRequest(), source, null, controller.signal);
+    expect(detail.search.status).toBe("cancelled");
+    expect(events.at(-1)).toMatchObject({ phase: "finished", message: "Scan cancelled" });
+  });
+
   it("warns when a preference cannot be checked or Google's format drifted", async () => {
     const drifted: DateOutcome = { ...ok("2026-11-10"), unparsed: Array.from({ length: 5 }, (_, i) => `From ??? ${i} Select flight`) };
     const detail = await runSearch(sampleRequest({ preference: "no red-eye", dateTo: "2026-11-10" }), sourceOf(async () => ({ dates: [drifted] })));

@@ -103,10 +103,14 @@ export function createGoogleFlightsSource(options: GoogleFlightsOptions): Flight
             outcome = await readDate(page, request, date, position, progress, signal);
           } catch (error) {
             if (error instanceof BlockedError || signal.aborted) throw error;
+            // A read that failed while Google was redirecting to its block page is a block, never retried.
+            if (page.url().includes("/sorry/")) throw new BlockedError();
             if (attempt === 2) {
               console.warn(`[skai] ${date} missing: ${error instanceof Error ? error.message : String(error)}`);
               await saveDebug(page, date);
               outcome = { date, status: "missing", itineraries: [], unparsed: [] };
+            } else if (pauseMs > 0) {
+              await sleep(pauseMs, undefined, { signal });
             }
           }
         }

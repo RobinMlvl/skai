@@ -13,13 +13,9 @@ const FITS = noul(
   },
 );
 
+/** `analyze` already orders the frontier first, then the others by price. */
 export function pickForJudging(analyzed: readonly AnalyzedItinerary[], limit = JUDGE_LIMIT): StoredItinerary[] {
-  const candidates = analyzed.filter((row) => !row.excluded);
-  const frontier = candidates.filter((row) => row.onFrontier);
-  const others = candidates
-    .filter((row) => !row.onFrontier)
-    .sort((a, b) => a.item.priceEur - b.item.priceEur || a.item.durationMin - b.item.durationMin);
-  return [...frontier, ...others].slice(0, limit).map((row) => row.item);
+  return analyzed.filter((row) => !row.excluded).slice(0, limit).map((row) => row.item);
 }
 
 const toJudgeState = (preference: string, it: StoredItinerary) => ({

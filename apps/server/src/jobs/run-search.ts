@@ -48,6 +48,7 @@ export function createSearchRunner(deps: RunnerDeps): JobRunner {
     deps.store.setStatus(searchId, "running");
     try {
       const result = await deps.source.run(request, emit, signal);
+      signal.throwIfAborted(); // a cancel that landed during the last date still ends "cancelled"
       const found = result.dates.flatMap((date) => date.itineraries);
       const stored = deps.store.saveItineraries(searchId, found);
       emit({ phase: "analyzing", message: `Analyzing ${stored.length} flights` });
