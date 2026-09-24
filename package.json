@@ -1,0 +1,19 @@
+{
+  "name": "skai",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "engines": { "node": ">=22.12" },
+  "scripts": {
+    "dev": "concurrently -n server,web -c red,blue \"npm run dev -w @skai/server\" \"npm run dev -w @skai/web\"",
+    "test": "vitest run",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "concurrently": "^10.0.5",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
+  }
+}
