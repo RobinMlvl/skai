@@ -84,7 +84,7 @@ export function FlightRow({ row, probability, hasPreference, origins, destinatio
           type="button"
           className="ghost book-btn"
           disabled={bookingDisabled}
-          aria-label={`Book ${it.airlines[0]} flight at ${formatPrice(it.priceEur)}`}
+          aria-label={`Book ${it.airlines[0]} flight on ${formatDay(it.date)} at ${it.departure.time}, ${formatPrice(it.priceEur)}`}
           onClick={(event) => {
             event.stopPropagation();
             activate();

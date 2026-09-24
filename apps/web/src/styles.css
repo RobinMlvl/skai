@@ -52,11 +52,20 @@ h2 { font: 600 15px var(--sans); color: var(--text); margin: 24px 0 10px; }
   .layout { grid-template-columns: 360px minmax(0, 1fr); align-items: start; }
   .left { position: sticky; top: 72px; }
 }
+@media (max-width: 959px) {
+  /* Form, then radar band + results, then "Recent scans" last (DOM order stays form/history/right). */
+  .left { display: contents; }
+  .left > form { order: 1; }
+  .left > .error { order: 1; }
+  .right { order: 2; }
+  .left > .history { order: 3; }
+}
 
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
 
 .field { display: grid; gap: 6px; margin-bottom: 14px; position: relative; }
 .field-label { font: 500 13px var(--sans); color: var(--muted); }
+.field-heading { display: flex; align-items: baseline; gap: 6px; }
 .chips {
   display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; min-height: 44px;
   background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
@@ -76,9 +85,10 @@ h2 { font: 600 15px var(--sans); color: var(--text); margin: 24px 0 10px; }
 .suggestions li { padding: 8px 10px; border-radius: 6px; cursor: pointer; }
 .suggestions li:hover, .suggestions li[aria-selected="true"] { background: var(--accent-soft); }
 
-.airport-pair { position: relative; padding-right: 38px; }
+.airport-pair { display: grid; gap: 6px; }
+.airport-pair > .field { margin-bottom: 0; }
 .swap-btn {
-  position: absolute; top: 50%; right: 0; transform: translateY(-50%); z-index: 5;
+  justify-self: end;
   width: 30px; height: 30px; padding: 0; display: grid; place-items: center;
   background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; color: var(--muted);
 }
@@ -129,7 +139,7 @@ textarea { resize: vertical; min-height: 64px; }
 
 .live-head { display: flex; align-items: center; gap: 14px; }
 .live-head > div { flex: 1; min-width: 0; }
-.live-phase { font: 500 13px var(--sans); color: var(--muted); }
+.live-phase { font: 500 13px var(--sans); color: var(--accent); }
 .bar { height: 3px; background: var(--line); border-radius: 2px; margin: 14px 0 10px; overflow: hidden; }
 .bar > div { height: 100%; background: var(--accent); box-shadow: 0 0 12px var(--accent); transition: width 0.4s ease; }
 .log { list-style: none; padding: 0; margin: 0 0 8px; font: 12px var(--mono); color: var(--muted); display: grid; gap: 2px; }

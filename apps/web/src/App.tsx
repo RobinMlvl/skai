@@ -53,7 +53,13 @@ export function App() {
       </header>
       <main className="layout">
         <section className="left">
-          <SearchForm disabled={session.running} onSubmit={session.start} onSelectionChange={onSelectionChange} />
+          <SearchForm
+            key={session.opened?.id ?? "new"}
+            initial={session.opened?.request}
+            disabled={session.running}
+            onSubmit={session.start}
+            onSelectionChange={onSelectionChange}
+          />
           {session.error && <p className="error" role="alert">{session.error}</p>}
           <History items={session.history} activeId={session.detail?.search.id ?? null} onOpen={session.open} />
         </section>

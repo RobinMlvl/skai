@@ -1,10 +1,25 @@
-import { isTerminal, type Phase, type ProgressEvent, type SearchDetail, type SearchRecord, type SearchRequestInput } from "@skai/core";
+import {
+  isTerminal,
+  type Phase,
+  type ProgressEvent,
+  type SearchDetail,
+  type SearchRecord,
+  type SearchRequest,
+  type SearchRequestInput,
+} from "@skai/core";
 import { useCallback, useEffect, useState } from "react";
 import { cancelSearch, createSearch, getSearch, listSearches, subscribeProgress } from "../api/client";
+
+/** The scan the user explicitly opened (click in History, or the on-load auto-open) — for pre-filling the form. */
+export interface OpenedSearch {
+  id: string;
+  request: SearchRequest;
+}
 
 export interface SearchSession {
   history: SearchRecord[];
   detail: SearchDetail | null;
+  opened: OpenedSearch | null;
   events: ProgressEvent[];
   running: boolean;
   phase: Phase | null;
@@ -31,6 +46,7 @@ const finishedEvent = ({ search }: SearchDetail): ProgressEvent =>
 export function useSearchSession(): SearchSession {
   const [history, setHistory] = useState<SearchRecord[]>([]);
   const [detail, setDetail] = useState<SearchDetail | null>(null);
+  const [opened, setOpened] = useState<OpenedSearch | null>(null);
   const [liveId, setLiveId] = useState<string | null>(null);
   const [events, setEvents] = useState<ProgressEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +132,7 @@ export function useSearchSession(): SearchSession {
     setError(null);
     try {
       const found = await getSearch(id);
+      setOpened({ id, request: found.search.request });
       if (isTerminal(found.search.status)) {
         setLiveId(null);
         setEvents([]);
@@ -144,5 +161,5 @@ export function useSearchSession(): SearchSession {
     if (liveId) void cancelSearch(liveId);
   }, [liveId]);
 
-  return { history, detail, events, running, phase: last?.phase ?? null, error, start, open, cancel };
+  return { history, detail, opened, events, running, phase: last?.phase ?? null, error, start, open, cancel };
 }

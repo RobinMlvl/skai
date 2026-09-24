@@ -5,6 +5,7 @@ import {
   MAX_PREFERENCE_CHARS,
   MAX_RANGE_DAYS,
   todayIso,
+  type SearchRequest,
   type SearchRequestInput,
   type Settings,
 } from "@skai/core";
@@ -15,18 +16,25 @@ import { TrapRules } from "./TrapRules";
 
 interface Props {
   disabled: boolean;
+  /** The opened scan's request, if any: pre-fills the form. Pair with a `key` on the opened id so it re-initialises. */
+  initial?: SearchRequest;
   onSubmit(input: SearchRequestInput): void;
   onSelectionChange(origins: string[], destinations: string[]): void;
 }
 
-export function SearchForm({ disabled, onSubmit, onSelectionChange }: Props) {
+export function SearchForm({ disabled, initial, onSubmit, onSelectionChange }: Props) {
   const today = todayIso();
-  const [origins, setOrigins] = useState<string[]>([]);
-  const [destinations, setDestinations] = useState<string[]>([]);
-  const [dateFrom, setDateFrom] = useState(addDays(today, 14));
-  const [dateTo, setDateTo] = useState(addDays(today, 20));
-  const [preference, setPreference] = useState("");
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  // Reuse the opened search's dates only when they still make sense (first date not in the past).
+  const initialDates =
+    initial && initial.dateFrom >= today
+      ? { from: initial.dateFrom, to: initial.dateTo }
+      : { from: addDays(today, 14), to: addDays(today, 20) };
+  const [origins, setOrigins] = useState<string[]>(initial?.origins ?? []);
+  const [destinations, setDestinations] = useState<string[]>(initial?.destinations ?? []);
+  const [dateFrom, setDateFrom] = useState(initialDates.from);
+  const [dateTo, setDateTo] = useState(initialDates.to);
+  const [preference, setPreference] = useState(initial?.preference ?? "");
+  const [settings, setSettings] = useState<Settings>(initial?.settings ?? DEFAULT_SETTINGS);
   const [error, setError] = useState<string | null>(null);
   const dateFromInput = useRef<HTMLInputElement>(null);
   const dateToInput = useRef<HTMLInputElement>(null);
@@ -67,7 +75,6 @@ export function SearchForm({ disabled, onSubmit, onSelectionChange }: Props) {
     <form className="panel" onSubmit={submit} noValidate>
       <div className="airport-pair">
         <AirportInput label="From" value={origins} onChange={setOrigins} disabled={disabled} />
-        <AirportInput label="To" value={destinations} onChange={setDestinations} disabled={disabled} />
         <button
           type="button"
           className="swap-btn"
@@ -77,6 +84,7 @@ export function SearchForm({ disabled, onSubmit, onSelectionChange }: Props) {
         >
           <span aria-hidden="true">⇅</span>
         </button>
+        <AirportInput label="To" value={destinations} onChange={setDestinations} disabled={disabled} />
       </div>
       <div className="field">
         <span className="field-label">Departure dates</span>
@@ -154,7 +162,7 @@ export function SearchForm({ disabled, onSubmit, onSelectionChange }: Props) {
         </div>
       </div>
       <label className="field">
-        <span className="row">
+        <span className="field-heading">
           <span className="field-label">Preferences</span>
           <span className="muted small">Checked by Jev</span>
         </span>
