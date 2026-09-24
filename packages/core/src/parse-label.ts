@@ -1,0 +1,121 @@
+import { daysBetween, MONTHS_LONG } from "./dates";
+import type { Itinerary, Layover } from "./types";
+
+/** Regex source matching a Google Flights result aria-label (use with the "s" flag). */
+export const RESULT_LABEL_SOURCE = "^From .*Select flight\\s*$";
+
+const MAIN = new RegExp(
+  "^From (?<price>[\\d,]+) euros\\. " +
+    "(?<bag>This price does not include overhead bin access\\. )?" +
+    "(?<stops>Nonstop|\\d+ stops?) flight with (?<airlines>.+?)\\. " +
+    "(?:Operated by (?<operated>.+?)\\. )?" +
+    "Leaves (?<dep>.+?) at (?<depTime>\\d{1,2}:\\d{2} [AP]M) on (?<depDay>\\w+, \\w+ \\d{1,2}) " +
+    "and arrives at (?<arr>.+?) at (?<arrTime>\\d{1,2}:\\d{2} [AP]M) on (?<arrDay>\\w+, \\w+ \\d{1,2})\\. " +
+    "Total duration (?<duration>[^.]+)\\.(?<rest>.*?) ?Select flight$",
+);
+const LAYOVER = /^Layover \(\d+ of \d+\) is a (.+?) (overnight )?layover at (.+?) in (.+)$/;
+// Assumed wording until real labels are captured (see spec §6).
+const SELF_TRANSFER = /self[- ]transfer|separate tickets/i;
+const AIRPORT_CHANGE = /change (?:of )?airports?|airport change|different airport/i;
+const ABBREVIATION = /\b(?:St|Ste|Mt|Ft)\.$/;
+
+const normalize = (label: string) =>
+  label.replace(/\s+/g, " ").replace(/(euros)\.(?=\S)/, "$1. ").trim();
+
+function parseDuration(text: string): number | null {
+  const match = /^(?:(\d+) hr)?(?: ?(\d+) min)?$/.exec(text.trim());
+  if (!match || (match[1] === undefined && match[2] === undefined)) return null;
+  return Number(match[1] ?? 0) * 60 + Number(match[2] ?? 0);
+}
+
+function to24h(time: string): string {
+  const match = /^(\d{1,2}):(\d{2}) ([AP])M$/.exec(time);
+  if (!match) return time;
+  const hours = (Number(match[1]) % 12) + (match[3] === "P" ? 12 : 0);
+  return `${String(hours).padStart(2, "0")}:${match[2]}`;
+}
+
+/** "Wednesday, November 11" in `year` → "YYYY-11-11", or null. */
+function isoFor(dayText: string, year: number): string | null {
+  const match = /^\w+, (\w+) (\d{1,2})$/.exec(dayText);
+  if (!match) return null;
+  const month = MONTHS_LONG.indexOf(match[1] as (typeof MONTHS_LONG)[number]);
+  if (month < 0) return null;
+  return `${year}-${String(month + 1).padStart(2, "0")}-${match[2]!.padStart(2, "0")}`;
+}
+
+/** "Paris." → "Paris"; "St. Louis." → "St. Louis"; "Paris. Change of airport." → "Paris". */
+function firstSentence(text: string): string {
+  let from = 0;
+  for (;;) {
+    const dot = text.indexOf(".", from);
+    if (dot === -1) return text.trim();
+    if (!ABBREVIATION.test(text.slice(0, dot + 1))) return text.slice(0, dot).trim();
+    from = dot + 1;
+  }
+}
+
+function parseLayovers(rest: string): Layover[] | null {
+  const layovers: Layover[] = [];
+  const chunks = rest
+    .split(/(?=Layover \(\d+ of \d+\))/)
+    .map((chunk) => chunk.trim())
+    .filter((chunk) => chunk.startsWith("Layover ("));
+  for (const chunk of chunks) {
+    const match = LAYOVER.exec(chunk);
+    if (!match) return null;
+    const durationMin = parseDuration(match[1]!);
+    if (durationMin === null) return null;
+    layovers.push({ durationMin, airport: match[3]!, city: firstSentence(match[4]!), overnight: Boolean(match[2]) });
+  }
+  return layovers;
+}
+
+export function parseLabel(label: string, date: string): Itinerary | null {
+  const text = normalize(label);
+  const g = MAIN.exec(text)?.groups;
+  if (!g) return null;
+
+  const durationMin = parseDuration(g.duration!);
+  const layovers = parseLayovers(g.rest ?? "");
+  const stops = g.stops === "Nonstop" ? 0 : Number.parseInt(g.stops!, 10);
+  if (durationMin === null || layovers === null || layovers.length !== stops) return null;
+
+  const year = Number(date.slice(0, 4));
+  let departureIso = isoFor(g.depDay!, year);
+  if (!departureIso) return null;
+  if (daysBetween(date, departureIso) < -300) departureIso = isoFor(g.depDay!, year + 1)!;
+  const departureYear = Number(departureIso.slice(0, 4));
+  let arrivalIso = isoFor(g.arrDay!, departureYear);
+  if (!arrivalIso) return null;
+  if (arrivalIso < departureIso) arrivalIso = isoFor(g.arrDay!, departureYear + 1)!;
+
+  return {
+    date,
+    priceEur: Number(g.price!.replace(/,/g, "")),
+    airlines: g.airlines!.split(/, and |, | and /),
+    operatedBy: g.operated ?? null,
+    departure: { airport: g.dep!, time: to24h(g.depTime!) },
+    arrival: { airport: g.arr!, time: to24h(g.arrTime!), dayOffset: daysBetween(departureIso, arrivalIso) },
+    durationMin,
+    stops,
+    layovers,
+    flags: {
+      bagNotIncluded: Boolean(g.bag),
+      selfTransfer: SELF_TRANSFER.test(text),
+      airportChange: AIRPORT_CHANGE.test(text),
+    },
+    rawLabel: text,
+  };
+}
+
+export function parseLabels(labels: readonly string[], date: string): { itineraries: Itinerary[]; unparsed: string[] } {
+  const itineraries: Itinerary[] = [];
+  const unparsed: string[] = [];
+  for (const label of new Set(labels.map(normalize))) {
+    const itinerary = parseLabel(label, date);
+    if (itinerary) itineraries.push(itinerary);
+    else unparsed.push(label);
+  }
+  return { itineraries, unparsed };
+}
