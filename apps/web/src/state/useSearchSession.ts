@@ -35,6 +35,7 @@ export function useSearchSession(): SearchSession {
   const [events, setEvents] = useState<ProgressEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [autoOpened, setAutoOpened] = useState(false);
 
   const refreshHistory = useCallback(() => {
     listSearches().then(setHistory, (e: unknown) => setError(messageOf(e)));
@@ -127,6 +128,15 @@ export function useSearchSession(): SearchSession {
       setError(messageOf(e));
     }
   }, []);
+
+  // On first load, follow straight into the most recent search: only once, and only if the
+  // user (or a start() already in flight) hasn't opened anything by the time history arrives.
+  useEffect(() => {
+    if (autoOpened || history.length === 0) return;
+    setAutoOpened(true);
+    if (detail || liveId) return;
+    void open(history[0]!.id);
+  }, [history, autoOpened, detail, liveId, open]);
 
   const last = events.at(-1);
   const running = starting || (liveId !== null && last?.phase !== "finished");

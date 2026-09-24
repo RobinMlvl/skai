@@ -6,6 +6,8 @@ interface Props {
   origins: string[];
   destinations: string[];
   active: boolean;
+  /** CSS px; the canvas is square. */
+  size: number;
 }
 
 type LatLon = [number, number];
@@ -15,7 +17,7 @@ const toAngles = (lat: number, lon: number): LatLon => [
 ];
 const known = (codes: string[]) => codes.map(airportByIata).filter((a): a is Airport => a !== undefined);
 
-export function Globe({ origins, destinations, active }: Props) {
+export function Globe({ origins, destinations, active, size }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const activeRef = useRef(active);
   activeRef.current = active;
@@ -30,7 +32,6 @@ export function Globe({ origins, destinations, active }: Props) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const size = canvas.offsetWidth || 400;
     const focus = points.from[0] ?? points.to[0];
     let [phi, theta] = focus ? toAngles(focus.lat, focus.lon) : [0, 0.3];
     theta = Math.max(-0.6, Math.min(0.6, theta));
@@ -74,11 +75,17 @@ export function Globe({ origins, destinations, active }: Props) {
       cancelAnimationFrame(frame);
       globe.destroy();
     };
-  }, [points]);
+  }, [points, size]);
 
   return (
     <div className="globe-wrap">
-      <canvas ref={canvasRef} className="globe" role="img" aria-label="Globe showing the selected airports" />
+      <canvas
+        ref={canvasRef}
+        className="globe"
+        style={{ width: size, height: size }}
+        role="img"
+        aria-label="Globe showing the selected airports"
+      />
     </div>
   );
 }
