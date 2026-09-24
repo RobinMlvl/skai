@@ -10,7 +10,8 @@ interface Props {
 
 export function LivePanel({ events, running, onCancel }: Props) {
   const last = events.at(-1);
-  const percent = last?.dateCount ? Math.round(((last.dateIndex ?? 0) / last.dateCount) * 100) : null;
+  // dateIndex is 1-based and sent when a date starts: count only the dates already read.
+  const percent = last?.dateCount ? Math.round((((last.dateIndex ?? 1) - 1) / last.dateCount) * 100) : null;
   return (
     <section className="panel live" aria-live="polite">
       <div className="live-head">

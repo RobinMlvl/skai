@@ -4,16 +4,15 @@ interface Props {
   value: Settings;
   onChange(settings: Settings): void;
   disabled?: boolean;
-  open?: boolean;
 }
 
-export function TrapRules({ value, onChange, disabled, open }: Props) {
+export function TrapRules({ value, onChange, disabled }: Props) {
   const setNumber = (key: "maxDurationRatio" | "maxLayoverMin" | "minLayoverMin", raw: string) => {
     const parsed = Number(raw);
     if (raw !== "" && Number.isFinite(parsed)) onChange({ ...value, [key]: parsed });
   };
   return (
-    <details className="rules" open={open}>
+    <details className="rules">
       <summary>Trap rules</summary>
       <div className="rules-grid">
         <label>

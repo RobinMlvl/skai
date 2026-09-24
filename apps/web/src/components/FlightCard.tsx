@@ -6,7 +6,14 @@ const VERDICT_LABEL: Record<Verdict, string> = {
   unsure: "Jev is unsure",
 };
 
-export function FlightCard({ row, probability }: { row: AnalyzedItinerary; probability: number | undefined }) {
+interface Props {
+  row: AnalyzedItinerary;
+  probability: number | undefined;
+  /** The search had a preference: a flight Jev did not judge shows "—". */
+  hasPreference: boolean;
+}
+
+export function FlightCard({ row, probability, hasPreference }: Props) {
   const it = row.item;
   const verdict = probability === undefined ? null : verdictFor(probability);
   const stops = it.stops === 0 ? "Nonstop" : `${it.stops} stop${it.stops > 1 ? "s" : ""}`;
@@ -50,6 +57,11 @@ export function FlightCard({ row, probability }: { row: AnalyzedItinerary; proba
         {verdict && probability !== undefined && (
           <span className={`badge verdict ${verdict}`} title={`Jev probability ${probability.toFixed(2)}`}>
             {VERDICT_LABEL[verdict]}
+          </span>
+        )}
+        {!verdict && hasPreference && (
+          <span className="badge verdict" title="Not checked by Jev">
+            —
           </span>
         )}
       </div>

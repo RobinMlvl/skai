@@ -34,6 +34,7 @@ export function useSearchSession(): SearchSession {
   const [liveId, setLiveId] = useState<string | null>(null);
   const [events, setEvents] = useState<ProgressEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
 
   const refreshHistory = useCallback(() => {
     listSearches().then(setHistory, (e: unknown) => setError(messageOf(e)));
@@ -86,12 +87,15 @@ export function useSearchSession(): SearchSession {
     async (input: SearchRequestInput) => {
       setError(null);
       setDetail(null);
+      setStarting(true); // keeps the form disabled until the search exists (no double submit)
       try {
         const { id } = await createSearch(input);
         setLiveId(id);
         refreshHistory();
       } catch (e) {
         setError(messageOf(e));
+      } finally {
+        setStarting(false);
       }
     },
     [refreshHistory],
@@ -115,7 +119,7 @@ export function useSearchSession(): SearchSession {
   }, []);
 
   const last = events.at(-1);
-  const running = liveId !== null && last?.phase !== "finished";
+  const running = starting || (liveId !== null && last?.phase !== "finished");
   const cancel = useCallback(() => {
     if (liveId) void cancelSearch(liveId);
   }, [liveId]);

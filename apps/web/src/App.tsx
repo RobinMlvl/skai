@@ -37,7 +37,7 @@ export function App() {
           {session.events.length > 0 && (
             <LivePanel events={session.events} running={session.running} onCancel={session.cancel} />
           )}
-          {session.detail && <ResultsView detail={session.detail} />}
+          {session.detail && <ResultsView key={session.detail.search.id} detail={session.detail} />}
         </section>
       </main>
     </div>
