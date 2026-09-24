@@ -24,7 +24,7 @@ export function App() {
         <h1>
           Sk<em>AI</em>
         </h1>
-        <span className="tag">flight intelligence</span>
+        <span className="tag">Finds the flights worth taking</span>
       </header>
       <main className="layout">
         <section className="left">
