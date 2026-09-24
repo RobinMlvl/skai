@@ -1,6 +1,6 @@
 import { MAX_AIRPORTS } from "@skai/core";
 import { useId, useMemo, useState } from "react";
-import { searchAirports } from "../airports/search";
+import { airportByIata, searchAirports } from "../airports/search";
 
 interface Props {
   label: string;
@@ -41,7 +41,7 @@ export function AirportInput({ label, value, onChange, disabled }: Props) {
             aria-label={`Remove ${code}`}
             onClick={() => onChange(value.filter((c) => c !== code))}
           >
-            {code} <span aria-hidden="true">×</span>
+            <span className="mono">{code}</span> {airportByIata(code)?.city ?? code} <span aria-hidden="true">×</span>
           </button>
         ))}
         <input
