@@ -1,6 +1,5 @@
 // Usage: npm run capture -w @skai/server -- GVA,ZRH BKK,HKT 2026-11-10
 import { mkdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { isValidIsoDate, parseLabels, searchUrl } from "@skai/core";
 import {
@@ -11,6 +10,7 @@ import {
   waitForResults,
 } from "../src/browser/page-state";
 import { createBrowserSession } from "../src/browser/session";
+import { loadConfig } from "../src/config";
 
 const [originsArg, destinationsArg, date] = process.argv.slice(2);
 if (!originsArg || !destinationsArg || !date || !isValidIsoDate(date)) {
@@ -19,7 +19,8 @@ if (!originsArg || !destinationsArg || !date || !isValidIsoDate(date)) {
 }
 
 const input = { date, origins: originsArg.split(","), destinations: destinationsArg.split(",") };
-const session = createBrowserSession({ profileDir: join(homedir(), ".skai", "chrome-profile") });
+// Same profile as the server (stop the server first: Chrome locks its profile).
+const session = createBrowserSession({ profileDir: join(loadConfig(process.env).dataDir, "chrome-profile") });
 
 try {
   const page = await session.page();
