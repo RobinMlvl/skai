@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BlockedError } from "../src/browser/page-state";
 import { createSearchRunner } from "../src/jobs/run-search";
 import { createProgressBus, type ProgressBus } from "../src/jobs/progress-bus";
-import type { FlightSource } from "../src/sources/flight-source";
+import { ScanInterruptedError, type FlightSource } from "../src/sources/flight-source";
 import { openSqliteStore, type SearchStore } from "../src/store/search-store";
 import { fakeJev, noulAnswer } from "./fake-jev";
 import { sampleItineraries, sampleRequest } from "./helpers";
@@ -117,4 +117,45 @@ describe("search runner", () => {
     expect(detail.itineraries).toHaveLength(10);
     expect(detail.search.stats?.warnings).toEqual(["Jev could not check your preferences."]);
   });
+
+  it("keeps the dates scanned before a block, and still checks preferences", async () => {
+    const jev = fakeJev(() => ({ fits: noulAnswer(0.8) }));
+    const source = sourceOf(async () => {
+      throw new ScanInterruptedError(new BlockedError(), [ok("2026-11-10")]);
+    });
+    const detail = await runSearch(sampleRequest({ preference: "no Istanbul" }), source, jev);
+    expect(detail.search.status).toBe("blocked");
+    expect(detail.search.error).toContain("Google showed a block page");
+    expect(detail.itineraries).toHaveLength(10);
+    expect(detail.judgments).toHaveLength(10);
+    expect(detail.search.stats).toMatchObject({ datesOk: 1, datesMissing: [], labelsRead: 10 });
+    expect(events.at(-1)!.phase).toBe("finished");
+  });
+
+  it("keeps the dates scanned before a cancel, without asking Jev", async () => {
+    const jev = fakeJev(() => ({ fits: noulAnswer(0.8) }));
+    const controller = new AbortController();
+    const source = sourceOf(async () => {
+      controller.abort(new Error("Cancelled by the user"));
+      throw new ScanInterruptedError(controller.signal.reason, [ok("2026-11-10")]);
+    });
+    const detail = await runSearch(sampleRequest({ preference: "no Istanbul" }), source, jev, controller.signal);
+    expect(detail.search.status).toBe("cancelled");
+    expect(detail.itineraries).toHaveLength(10);
+    expect(detail.judgments).toHaveLength(0);
+    expect(jev.calls).toBe(0);
+    expect(detail.search.stats?.datesOk).toBe(1);
+  });
+
+  it("keeps the results when the cancel lands during the last date", async () => {
+    const controller = new AbortController();
+    const source = sourceOf(async () => {
+      controller.abort(new Error("Cancelled by the user"));
+      return { dates: [ok("2026-11-10")] };
+    });
+    const detail = await runSearch(sampleRequest({ dateTo: "2026-11-10" }), source, null, controller.signal);
+    expect(detail.search.status).toBe("cancelled");
+    expect(detail.itineraries).toHaveLength(10);
+  });
 });
+

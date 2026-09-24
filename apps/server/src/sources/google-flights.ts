@@ -15,7 +15,7 @@ import {
 } from "../browser/page-state";
 import type { BrowserSession } from "../browser/session";
 import type { Jev } from "../jev";
-import type { FlightSource, ProgressSink, SourceResult } from "./flight-source";
+import { ScanInterruptedError, type FlightSource, type ProgressSink, type SourceResult } from "./flight-source";
 
 export interface GoogleFlightsOptions {
   session: BrowserSession;
@@ -92,30 +92,35 @@ export function createGoogleFlightsSource(options: GoogleFlightsOptions): Flight
       const page = await options.session.page();
       const outcomes: DateOutcome[] = [];
 
-      for (const [index, date] of dates.entries()) {
-        signal.throwIfAborted();
-        const position = { dateIndex: index + 1, dateCount: dates.length };
-        progress({ phase: "sweeping", message: `Scanning ${date}`, ...position });
+      try {
+        for (const [index, date] of dates.entries()) {
+          signal.throwIfAborted();
+          const position = { dateIndex: index + 1, dateCount: dates.length };
+          progress({ phase: "sweeping", message: `Scanning ${date}`, ...position });
 
-        let outcome: DateOutcome | null = null;
-        for (let attempt = 1; attempt <= 2 && !outcome; attempt++) {
-          try {
-            outcome = await readDate(page, request, date, position, progress, signal);
-          } catch (error) {
-            if (error instanceof BlockedError || signal.aborted) throw error;
-            // A read that failed while Google was redirecting to its block page is a block, never retried.
-            if (page.url().includes("/sorry/")) throw new BlockedError();
-            if (attempt === 2) {
-              console.warn(`[skai] ${date} missing: ${error instanceof Error ? error.message : String(error)}`);
-              await saveDebug(page, date);
-              outcome = { date, status: "missing", itineraries: [], unparsed: [] };
-            } else if (pauseMs > 0) {
-              await sleep(pauseMs, undefined, { signal });
+          let outcome: DateOutcome | null = null;
+          for (let attempt = 1; attempt <= 2 && !outcome; attempt++) {
+            try {
+              outcome = await readDate(page, request, date, position, progress, signal);
+            } catch (error) {
+              if (error instanceof BlockedError || signal.aborted) throw error;
+              // A read that failed while Google was redirecting to its block page is a block, never retried.
+              if (page.url().includes("/sorry/")) throw new BlockedError();
+              if (attempt === 2) {
+                console.warn(`[skai] ${date} missing: ${error instanceof Error ? error.message : String(error)}`);
+                await saveDebug(page, date);
+                outcome = { date, status: "missing", itineraries: [], unparsed: [] };
+              } else if (pauseMs > 0) {
+                await sleep(pauseMs, undefined, { signal });
+              }
             }
           }
+          outcomes.push(outcome!);
+          if (index < dates.length - 1 && pauseMs > 0) await sleep(pauseMs, undefined, { signal });
         }
-        outcomes.push(outcome!);
-        if (index < dates.length - 1 && pauseMs > 0) await sleep(pauseMs, undefined, { signal });
+      } catch (error) {
+        // Hand back what was already read: a block or a cancel must not discard it.
+        throw new ScanInterruptedError(error, outcomes);
       }
       return { dates: outcomes };
     },

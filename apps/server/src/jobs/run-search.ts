@@ -1,8 +1,8 @@
-import { analyze, emptyStats, type ProgressEvent, type SearchStats, type SearchStatus } from "@skai/core";
+import { analyze, type DateOutcome, type ProgressEvent, type SearchStatus } from "@skai/core";
 import { BlockedError } from "../browser/page-state";
 import type { Jev } from "../jev";
 import { judgePreference, pickForJudging } from "../judge/judge";
-import type { FlightSource, ProgressSink } from "../sources/flight-source";
+import { ScanInterruptedError, type FlightSource, type ProgressSink } from "../sources/flight-source";
 import type { SearchStore } from "../store/search-store";
 import type { JobRunner } from "./job-queue";
 import type { ProgressBus } from "./progress-bus";
@@ -40,66 +40,77 @@ export function createSearchRunner(deps: RunnerDeps): JobRunner {
       deps.store.setProgress(searchId, event);
       deps.bus.publish(searchId, event);
     };
-    const finish = (status: SearchStatus, stats: SearchStats, error: string | null) => {
-      deps.store.finish(searchId, status, stats, error);
-      emit({ phase: "finished", message: FINISH_MESSAGES[status] });
-    };
-
     deps.store.setStatus(searchId, "running");
-    try {
-      const result = await deps.source.run(request, emit, signal);
-      signal.throwIfAborted(); // a cancel that landed during the last date still ends "cancelled"
-      const found = result.dates.flatMap((date) => date.itineraries);
-      const stored = deps.store.saveItineraries(searchId, found);
-      emit({ phase: "analyzing", message: `Analyzing ${stored.length} flights` });
-      const analyzed = analyze(stored, request.settings);
 
-      const warnings: string[] = [];
-      if (request.preference) {
+    // Whatever stops the scan, the dates already read are kept (Robin, 2026-09-25).
+    let dates: DateOutcome[] = [];
+    let interruption: unknown = null;
+    try {
+      dates = (await deps.source.run(request, emit, signal)).dates;
+      if (signal.aborted) interruption = signal.reason; // a cancel that landed during the last date
+    } catch (error) {
+      if (error instanceof ScanInterruptedError) {
+        dates = error.dates;
+        interruption = error.reason;
+      } else {
+        interruption = error;
+      }
+    }
+    const cancelled = signal.aborted;
+    const blocked = interruption instanceof BlockedError;
+
+    const found = dates.flatMap((date) => date.itineraries);
+    const stored = deps.store.saveItineraries(searchId, found);
+    const warnings: string[] = [];
+    if (stored.length > 0) {
+      emit({ phase: "analyzing", message: `Analyzing ${stored.length} flights` });
+      if (request.preference && !cancelled) {
         if (!deps.jev) {
           warnings.push("TYPESAFE_API_KEY is not set, so your preferences were not checked.");
-        } else if (stored.length > 0) {
+        } else {
           emit({ phase: "judging", message: "Jev is checking your preferences" });
           try {
+            const analyzed = analyze(stored, request.settings);
             const judgments = await judgePreference(deps.jev, request.preference, pickForJudging(analyzed), { signal });
             deps.store.saveJudgments(judgments, deps.now());
-          } catch (error) {
-            if (signal.aborted) throw error;
-            warnings.push("Jev could not check your preferences.");
+          } catch {
+            if (!signal.aborted) warnings.push("Jev could not check your preferences.");
           }
         }
       }
-
-      const unparsed = result.dates.reduce((sum, date) => sum + date.unparsed.length, 0);
-      const labelsRead = found.length + unparsed;
-      if (labelsRead > 0 && found.length / labelsRead < MIN_PARSE_COVERAGE) {
-        warnings.push("Google may have changed its format: some flights could not be read.");
-      }
-      const datesMissing = result.dates.filter((date) => date.status === "missing").map((date) => date.date);
-      const status: SearchStatus =
-        datesMissing.length === result.dates.length ? "failed" : datesMissing.length > 0 ? "partial" : "done";
-      finish(
-        status,
-        {
-          datesOk: result.dates.length - datesMissing.length,
-          datesMissing,
-          labelsRead,
-          labelsUnparsed: unparsed,
-          jevCalls: jevCalls(),
-          durationMs: Date.now() - startedAt,
-          warnings,
-        },
-        status === "failed" ? "No date could be read." : null,
-      );
-    } catch (error) {
-      const stats = { ...emptyStats(), jevCalls: jevCalls(), durationMs: Date.now() - startedAt };
-      if (error instanceof BlockedError) {
-        finish("blocked", stats, "Google showed a block page. SkAI stopped without retrying; try again later.");
-      } else if (signal.aborted) {
-        finish("cancelled", stats, null);
-      } else {
-        finish("failed", stats, error instanceof Error ? error.message : String(error));
-      }
     }
+
+    const unparsed = dates.reduce((sum, date) => sum + date.unparsed.length, 0);
+    const labelsRead = found.length + unparsed;
+    if (labelsRead > 0 && found.length / labelsRead < MIN_PARSE_COVERAGE) {
+      warnings.push("Google may have changed its format: some flights could not be read.");
+    }
+    const datesMissing = dates.filter((date) => date.status === "missing").map((date) => date.date);
+    const stats = {
+      datesOk: dates.length - datesMissing.length,
+      datesMissing,
+      labelsRead,
+      labelsUnparsed: unparsed,
+      jevCalls: jevCalls(),
+      durationMs: Date.now() - startedAt,
+      warnings,
+    };
+
+    let status: SearchStatus;
+    let error: string | null = null;
+    if (blocked) {
+      status = "blocked";
+      error = "Google showed a block page. SkAI stopped without retrying; try again later.";
+    } else if (signal.aborted) {
+      status = "cancelled";
+    } else if (interruption) {
+      status = "failed";
+      error = interruption instanceof Error ? interruption.message : String(interruption);
+    } else {
+      status = datesMissing.length === dates.length ? "failed" : datesMissing.length > 0 ? "partial" : "done";
+      if (status === "failed") error = "No date could be read.";
+    }
+    deps.store.finish(searchId, status, stats, error);
+    emit({ phase: "finished", message: FINISH_MESSAGES[status] });
   };
 }

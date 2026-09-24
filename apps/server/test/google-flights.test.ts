@@ -3,7 +3,7 @@ import type { Page } from "playwright";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BlockedError } from "../src/browser/page-state";
 import type { BrowserSession } from "../src/browser/session";
-import type { ProgressUpdate } from "../src/sources/flight-source";
+import { ScanInterruptedError, type ProgressUpdate } from "../src/sources/flight-source";
 import { createGoogleFlightsSource } from "../src/sources/google-flights";
 import { resultsPage, serve, testSession } from "./browser-helpers";
 import { choiceAnswer, fakeJev } from "./fake-jev";
@@ -43,7 +43,21 @@ describe("GoogleFlightsSource", () => {
 
   it("stops at once on a block page", async () => {
     await serve(page, "<p>Our systems have detected unusual traffic from your computer network.</p>");
-    await expect(run().result).rejects.toBeInstanceOf(BlockedError);
+    const error = await run().result.catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ScanInterruptedError);
+    expect((error as ScanInterruptedError).reason).toBeInstanceOf(BlockedError);
+    expect((error as ScanInterruptedError).dates).toEqual([]);
+  });
+
+  it("hands back the dates read before a block", async () => {
+    await serve(page, (url) =>
+      dateOf(url) === "2026-11-11"
+        ? "<p>Our systems have detected unusual traffic from your computer network.</p>"
+        : resultsPage(googleShortDate(dateOf(url)), FIXTURE.labels),
+    );
+    const error = (await run().result.catch((e: unknown) => e)) as ScanInterruptedError;
+    expect(error.reason).toBeInstanceOf(BlockedError);
+    expect(error.dates.map((d) => [d.date, d.status, d.itineraries.length])).toEqual([["2026-11-10", "ok", 10]]);
   });
 
   it("marks a date missing when Google shows another date", async () => {
