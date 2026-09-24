@@ -22,7 +22,7 @@ const ARC_MS = 600; // arcs rise from the ground
 const ARC_HEIGHT = 0.28;
 const BREATH_MS = 1_400; // one breath while a scan runs
 const IDLE_SPIN = 0.0012; // radians per frame, only when no route is shown
-const MAX_TILT = 0.5;
+const MAX_TILT = 1; // radians of camera tilt: enough to centre routes up to ~57° of latitude
 
 const known = (codes: string[]) => codes.map(airportByIata).filter((a): a is Airport => a !== undefined);
 const mix = (a: Rgb, b: Rgb, k: number): Rgb => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
