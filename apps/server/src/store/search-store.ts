@@ -24,6 +24,7 @@ export interface SearchStore {
   list(limit: number): SearchRecord[];
   /** Marks queued and running searches failed, with a finished progress event dated `now`. */
   failInterrupted(now: string): number;
+  findItinerary(id: string): { searchId: string; request: SearchRequest; itinerary: StoredItinerary } | null;
   close(): void;
 }
 
@@ -93,6 +94,9 @@ export function openSqliteStore(file: string): SearchStore {
   );
   const finishSearch = db.prepare("UPDATE searches SET status = ?, stats = ?, error = ? WHERE id = ?");
   const selectSearch = db.prepare("SELECT * FROM searches WHERE id = ?");
+  const selectItinerary = db.prepare(
+    "SELECT i.search_id AS searchId, i.data, s.request FROM itineraries i JOIN searches s ON s.id = i.search_id WHERE i.id = ?",
+  );
   const selectItineraries = db.prepare("SELECT data FROM itineraries WHERE search_id = ? ORDER BY rowid");
   const selectJudgments = db.prepare(
     `SELECT j.itinerary_id AS itineraryId, j.preference, j.probability
@@ -137,6 +141,15 @@ export function openSqliteStore(file: string): SearchStore {
     },
     list: (limit) => (selectRecent.all(limit) as SearchRow[]).map(toRecord),
     failInterrupted: (now) => failOpen.run({ message: "Server restarted during the search", now }).changes,
+    findItinerary(id) {
+      const row = selectItinerary.get(id) as { searchId: string; data: string; request: string } | undefined;
+      if (!row) return null;
+      return {
+        searchId: row.searchId,
+        request: JSON.parse(row.request) as SearchRequest,
+        itinerary: JSON.parse(row.data) as StoredItinerary,
+      };
+    },
     close: () => db.close(),
   };
 }

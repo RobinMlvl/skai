@@ -77,6 +77,11 @@ function parseLayovers(rest: string): Layover[] | null {
   return layovers;
 }
 
+/** A result label without its price: identifies the same flight after Google re-prices it. */
+export function flightIdentity(label: string): string {
+  return normalize(label).replace(/^From [\d,]+ euros\. /, "");
+}
+
 export function parseLabel(label: string, date: string): Itinerary | null {
   const text = normalize(label);
   const g = MAIN.exec(text)?.groups;

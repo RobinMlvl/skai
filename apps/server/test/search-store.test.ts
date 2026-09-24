@@ -78,4 +78,15 @@ describe("SqliteSearchStore", () => {
   it("returns null for unknown searches", () => {
     expect(store.get("missing")).toBeNull();
   });
+
+  it("finds a stored itinerary with its search request", () => {
+    store.create("a", sampleRequest({ origins: ["GVA", "ZRH"] }), "2026-09-24T10:00:00.000Z");
+    const [first] = store.saveItineraries("a", sampleItineraries().slice(0, 1));
+    const found = store.findItinerary(first!.id)!;
+    expect(found.searchId).toBe("a");
+    expect(found.request.origins).toEqual(["GVA", "ZRH"]);
+    expect(found.itinerary).toEqual(first);
+    expect(store.findItinerary("missing")).toBeNull();
+  });
 });
+

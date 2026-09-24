@@ -1,6 +1,8 @@
 import { emptyStats, isTerminal, makeSearchRequestSchema, type ProgressEvent } from "@skai/core";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
+import { BookingBusyError, type Booker } from "../booking/booking";
+import { BlockedError } from "../browser/page-state";
 import type { JobQueue } from "../jobs/job-queue";
 import type { ProgressBus } from "../jobs/progress-bus";
 import { FINISH_MESSAGES } from "../jobs/run-search";
@@ -11,6 +13,7 @@ export interface AppDeps {
   store: SearchStore;
   queue: JobQueue;
   bus: ProgressBus;
+  book: Booker;
   allowedHosts: readonly string[];
   today: () => string;
   newId: () => string;
@@ -57,6 +60,20 @@ export function createApp(deps: AppDeps) {
     }
     // "aborted": the runner records the cancellation and emits "finished" itself.
     return c.json({ result }, 202);
+  });
+
+  app.post("/itineraries/:id/book", async (c) => {
+    const found = deps.store.findItinerary(c.req.param("id"));
+    if (!found) return c.json({ error: "not_found", message: "Flight not found" }, 404);
+    try {
+      return c.json(await deps.book(found.request, found.itinerary));
+    } catch (error) {
+      if (error instanceof BookingBusyError) return c.json({ error: "busy", message: error.message }, 409);
+      if (error instanceof BlockedError) {
+        return c.json({ error: "blocked", message: "Google showed a block page. Try again later." }, 409);
+      }
+      return c.json({ error: "booking_failed", message: error instanceof Error ? error.message : String(error) }, 500);
+    }
   });
 
   app.get("/searches/:id/events", (c) => {

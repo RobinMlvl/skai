@@ -1,7 +1,10 @@
 import { chromium, type BrowserContext, type Page } from "playwright";
 
 export interface BrowserSession {
+  /** The tab scans run in. */
   page(): Promise<Page>;
+  /** A new tab in SkAI's window (bookings open there, beside the scan tab). */
+  newPage(): Promise<Page>;
   close(): Promise<void>;
 }
 
@@ -34,6 +37,10 @@ export function createBrowserSession(options: { profileDir: string; headless?: b
       context ??= open();
       const ctx = await context;
       return ctx.pages()[0] ?? (await ctx.newPage());
+    },
+    async newPage() {
+      context ??= open();
+      return (await context).newPage();
     },
     async close() {
       const current = context;

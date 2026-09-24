@@ -18,7 +18,9 @@ Toute l'interface est **en anglais**.
 ## 2. Hors périmètre du MVP
 
 - Aller-retour, plusieurs passagers, autre classe que Economy, autre devise que EUR.
-- Sélection ou réservation d'un vol (l'outil ne clique jamais sur un vol).
+- Réservation automatique : SkAI ne sélectionne un vol **que sur clic explicite de l'utilisateur** sur sa carte
+  (ajouté le 2026-09-25) pour ouvrir le site de la compagnie avec ce vol ; il ne remplit rien et ne paie jamais.
+  L'agent Jev, lui, ne peut toujours jamais cliquer sur un vol.
 - Hébergement, comptes utilisateurs, accès depuis le téléphone, alertes de prix.
 - Autres sources de données que Google Flights.
 - **Tout contournement anti-bot** (CAPTCHA, proxies, rotation d'empreinte) : exclu par principe.
@@ -272,3 +274,15 @@ Levées pendant l'intégration (captures réelles du 2026-09-24, 562 libellés) 
 Restantes :
 - Libellés exacts pour billets séparés et escale de nuit (jamais vus sur 562 libellés).
 - Limite réelle du nombre d'aéroports par champ côté Google (7 supposé).
+
+## 12. Évolutions du 2026-09-25
+
+- **Dates conservées** : si Google bloque ou si l'utilisateur annule, les dates déjà lues sont
+  enregistrées et affichées (statut `blocked` / `cancelled`). Après un blocage, Jev juge quand même la
+  préférence (il ne touche pas Google) ; après une annulation, non.
+- **Réservation au clic** : `POST /api/itineraries/:id/book` ouvre, dans un nouvel onglet de la fenêtre
+  Chrome de SkAI, la recherche du jour, clique la ligne du même vol (identité = libellé sans le prix,
+  car Google re-tarife) puis « Continue to book with <compagnie> airline ». Sans vendeur compagnie : la
+  page « Booking options » reste ouverte. Vol disparu : les résultats restent ouverts. Une réservation
+  à la fois (409 sinon) ; page de blocage → 409.
+

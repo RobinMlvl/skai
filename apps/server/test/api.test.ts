@@ -1,9 +1,11 @@
 import type { ProgressEvent } from "@skai/core";
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { createApp } from "../src/api/app";
+import { BookingBusyError, type Booker } from "../src/booking/booking";
 import type { JobQueue } from "../src/jobs/job-queue";
 import { createProgressBus, type ProgressBus } from "../src/jobs/progress-bus";
 import { openSqliteStore, type SearchStore } from "../src/store/search-store";
+import { sampleItineraries } from "./helpers";
 
 const BASE = "http://127.0.0.1:4317/api";
 const NOW = "2026-09-24T10:00:00.000Z";
@@ -41,6 +43,7 @@ let bus: ProgressBus;
 type CancelResult = ReturnType<JobQueue["cancel"]>;
 let queue: { enqueue: Mock<(id: string) => void>; cancel: Mock<(id: string) => CancelResult>; idle: () => Promise<void> };
 let app: ReturnType<typeof createApp>;
+let book: Mock<Booker>;
 let ids = 0;
 
 beforeEach(() => {
@@ -52,7 +55,9 @@ beforeEach(() => {
     idle: async () => {},
   };
   ids = 0;
+  book = vi.fn<Booker>(async () => ({ status: "options" as const }));
   app = createApp({
+    book,
     store,
     queue,
     bus,
@@ -186,3 +191,27 @@ describe("progress stream", () => {
     expect(events[1]).toMatchObject({ message: "Scan failed", jevCalls: 2, at: NOW });
   });
 });
+
+describe("booking API", () => {
+  it("opens the booking of a stored flight", async () => {
+    await app.request(`${BASE}/searches`, post("/searches", body));
+    const [stored] = store.saveItineraries("s1", sampleItineraries().slice(0, 1));
+    book.mockResolvedValueOnce({ status: "airline", seller: "Etihad", url: "https://www.etihad.com/x" });
+    const res = await app.request(`${BASE}/itineraries/${stored!.id}/book`, post(""));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: "airline", seller: "Etihad", url: "https://www.etihad.com/x" });
+    expect(book.mock.calls[0]![0].origins).toEqual(["GVA"]);
+    expect(book.mock.calls[0]![1].id).toBe(stored!.id);
+  });
+
+  it("answers 404 for an unknown flight and 409 while another booking opens", async () => {
+    expect((await app.request(`${BASE}/itineraries/nope/book`, post(""))).status).toBe(404);
+    await app.request(`${BASE}/searches`, post("/searches", body));
+    const [stored] = store.saveItineraries("s1", sampleItineraries().slice(0, 1));
+    book.mockRejectedValueOnce(new BookingBusyError());
+    const res = await app.request(`${BASE}/itineraries/${stored!.id}/book`, post(""));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: "busy" });
+  });
+});
+

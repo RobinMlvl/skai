@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import captured from "../fixtures/captured/GVA-ZRH_BKK-HKT_2026-11-15.json";
 import fixture from "../fixtures/gva-bkk-2026-11-10.json";
-import { parseLabel, parseLabels, RESULT_LABEL_SOURCE } from "../src/parse-label";
+import { flightIdentity, parseLabel, parseLabels, RESULT_LABEL_SOURCE } from "../src/parse-label";
 
 const [etihad, , lufthansa, emirates, , turkishOman, ita] = fixture.labels as string[];
 
@@ -160,3 +160,11 @@ describe("parseLabel on labels captured live on 2026-09-24 (GVA,ZRH → BKK,HKT,
     expect(itineraries.filter((i) => i.flags.airportChange)).toHaveLength(10);
   });
 });
+
+describe("flightIdentity", () => {
+  it("is the same flight when only the price changed", () => {
+    expect(flightIdentity(etihad!.replace("From 515 euros", "From 530 euros"))).toBe(flightIdentity(`  ${etihad!}`));
+    expect(flightIdentity(etihad!)).not.toBe(flightIdentity(lufthansa!));
+  });
+});
+

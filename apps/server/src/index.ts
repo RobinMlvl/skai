@@ -5,6 +5,7 @@ import { serve } from "@hono/node-server";
 import { todayIso } from "@skai/core";
 import { TypeSafeClient } from "@typesafe-ai/sdk";
 import { createApp } from "./api/app";
+import { createBooker } from "./booking/booking";
 import { createBrowserSession } from "./browser/session";
 import { allowedHosts, loadConfig } from "./config";
 import { createJev } from "./jev";
@@ -29,7 +30,8 @@ const bus = createProgressBus();
 const session = createBrowserSession({ profileDir: join(config.dataDir, "chrome-profile") });
 const source = createGoogleFlightsSource({ session, jev, debugDir: join(config.dataDir, "debug") });
 const queue = createJobQueue(createSearchRunner({ store, bus, source, jev, now }));
-const app = createApp({ store, queue, bus, allowedHosts: allowedHosts(config), today: () => todayIso(), newId: randomUUID, now });
+const book = createBooker({ session });
+const app = createApp({ store, queue, bus, book, allowedHosts: allowedHosts(config), today: () => todayIso(), newId: randomUUID, now });
 
 const server = serve({ fetch: app.fetch, port: config.port, hostname: "127.0.0.1" }, (info) => {
   console.log(`[skai] API on http://127.0.0.1:${info.port}/api, web app on http://127.0.0.1:${config.webDevPort}`);
