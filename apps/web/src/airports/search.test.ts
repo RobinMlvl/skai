@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { airportByIata, searchAirports } from "./search";
+import { airportByIata, searchAirports, shortCity } from "./search";
 
 describe("airport search", () => {
   it("finds airports by exact code first", () => {
@@ -17,3 +17,10 @@ describe("airport search", () => {
     expect(searchAirports("a", 5)).toHaveLength(5);
   });
 });
+
+it("shortens city labels for chips", () => {
+  expect(shortCity("Paris (Roissy-en-France, Val-d'Oise)")).toBe("Paris");
+  expect(shortCity("Montpellier/Méditerranée")).toBe("Montpellier");
+  expect(shortCity("Geneva")).toBe("Geneva");
+});
+

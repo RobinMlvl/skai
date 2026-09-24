@@ -16,6 +16,9 @@ export const airportByIata = (code: string) => BY_IATA.get(code);
 
 const fold = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
+/** City as a short label: "Paris (Orly, Val-de-Marne)" → "Paris", "Montpellier/Méditerranée" → "Montpellier". */
+export const shortCity = (city: string) => city.split(/[/(]/)[0]!.trim() || city;
+
 export function searchAirports(query: string, limit = 8): Airport[] {
   const q = fold(query.trim());
   if (!q) return [];
