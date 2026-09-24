@@ -75,14 +75,34 @@ export function readDepartureValue(page: Page): Promise<string | null> {
   });
 }
 
+/**
+ * Google fills the result list progressively: waits until the number of result labels has not
+ * changed for `quietMs` (or `maxMs` elapsed) and returns that number.
+ */
+export async function waitForStableResults(page: Page, { quietMs = 1_500, maxMs = 12_000 } = {}): Promise<number> {
+  const deadline = Date.now() + maxMs;
+  let count = (await readResultLabels(page)).length;
+  let stableSince = Date.now();
+  while (Date.now() < deadline && Date.now() - stableSince < quietMs) {
+    await page.waitForTimeout(250);
+    const next = (await readResultLabels(page)).length;
+    if (next !== count) {
+      count = next;
+      stableSince = Date.now();
+    }
+  }
+  return count;
+}
+
 export async function expandMoreFlights(page: Page): Promise<boolean> {
+  const before = await waitForStableResults(page);
   const button = page.getByRole("button", { name: /more flights/i }).first();
   if ((await button.count()) === 0) return false;
-  const before = (await readResultLabels(page)).length;
   await button.click({ timeout: 5_000 });
-  const deadline = Date.now() + 5_000;
+  const deadline = Date.now() + 8_000;
   while (Date.now() < deadline && (await readResultLabels(page)).length <= before) {
     await page.waitForTimeout(250);
   }
+  await waitForStableResults(page);
   return true;
 }

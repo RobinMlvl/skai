@@ -9,6 +9,7 @@ import {
   readDepartureValue,
   readResultLabels,
   waitForResults,
+  waitForStableResults,
 } from "../src/browser/page-state";
 import { resultsPage, serve, testSession } from "./browser-helpers";
 import { FIXTURE } from "./helpers";
@@ -98,6 +99,24 @@ describe("results", () => {
     await serve(page, "<p>Loading…</p>");
     await page.goto("https://www.google.com/travel/flights/search?x=6");
     expect(await waitForResults(page, 600)).toBe("timeout");
+  });
+
+  it("waits until Google stops adding flights to the list", async () => {
+    const progressive = `<script>
+      const labels = ${JSON.stringify(FIXTURE.labels)};
+      let i = 1;
+      const timer = setInterval(() => {
+        if (i >= labels.length) return clearInterval(timer);
+        const div = document.createElement("div");
+        div.setAttribute("aria-label", labels[i++]);
+        document.getElementById("results").append(div);
+      }, 300);
+    </script>`;
+    await serve(page, resultsPage("Tue, Nov 10", [FIXTURE.labels[0]!], progressive));
+    await page.goto("https://www.google.com/travel/flights/search?x=9");
+    expect(await waitForResults(page, 5_000)).toBe("results");
+    expect(await waitForStableResults(page)).toBe(FIXTURE.labels.length);
+    expect(await readResultLabels(page)).toHaveLength(FIXTURE.labels.length);
   });
 
   it("expands more flights when the button exists", async () => {
