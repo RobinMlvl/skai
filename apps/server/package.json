@@ -1,0 +1,22 @@
+{
+  "name": "@skai/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "capture": "tsx --env-file-if-exists=../../.env scripts/capture-labels.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@skai/core": "*",
+    "@typesafe-ai/sdk": "^0.6.0",
+    "better-sqlite3": "^13.0.3",
+    "hono": "^4.13.9",
+    "playwright": "^1.63.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0"
+  }
+}
