@@ -49,7 +49,7 @@ h2 { font: 600 15px var(--sans); color: var(--text); margin: 24px 0 10px; }
 .left { display: grid; gap: 16px; align-content: start; }
 .right { display: grid; gap: 16px; align-content: start; min-width: 0; }
 @media (min-width: 960px) {
-  .layout { grid-template-columns: 380px minmax(0, 1fr); align-items: start; }
+  .layout { grid-template-columns: 360px minmax(0, 1fr); align-items: start; }
   .left { position: sticky; top: 72px; }
 }
 
@@ -119,7 +119,13 @@ textarea { resize: vertical; min-height: 64px; }
 .check { display: flex; gap: 8px; align-items: center; }
 
 .globe-wrap { display: grid; place-items: center; }
-.globe { width: 100%; max-width: 520px; aspect-ratio: 1; }
+.globe { display: block; }
+
+.radar-band { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 20px; min-height: 40px; }
+.radar-status { min-width: 0; }
+@media (max-width: 959px) {
+  .radar-band { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 10px; }
+}
 
 .live-head { display: flex; align-items: center; gap: 14px; }
 .live-head > div { flex: 1; min-width: 0; }
@@ -141,17 +147,66 @@ textarea { resize: vertical; min-height: 64px; }
 .pt.frontier { fill: var(--accent); filter: drop-shadow(0 0 4px var(--accent)); }
 .pt.trapped { fill: transparent; stroke: var(--trap); stroke-width: 1.5; }
 
-.card {
-  display: grid; gap: 10px; padding: 14px; margin-bottom: 8px;
+.summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 22px; margin-bottom: 12px; }
+.summary-fact { display: inline-flex; align-items: baseline; gap: 4px; background: none; border: 0; padding: 0; color: inherit; font: inherit; }
+.summary-fact.link { cursor: pointer; }
+.summary-fact.link:hover .mono, .summary-fact.link:focus-visible .mono { color: var(--accent); }
+
+.flight-row {
+  display: grid; gap: 6px; padding: 12px 14px; margin-bottom: 6px; cursor: pointer;
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
 }
-@media (min-width: 640px) { .card { grid-template-columns: minmax(0, 1fr) auto; align-items: center; } }
-.card.trapped { border-left: 3px solid var(--trap); }
-.card.excluded { opacity: 0.55; }
-.price { font: 600 20px var(--mono); color: #fff; }
-.route { margin-top: 2px; }
-.route sup { color: var(--warn); }
-.meta { font-size: 13px; }
+.flight-row:hover { border-color: var(--accent); }
+.flight-row.trapped { border-left: 3px solid var(--trap); }
+.flight-row.excluded { opacity: 0.55; }
+.flight-row.highlight { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.flight-main {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    "dep   arr   price"
+    "dep   arr   book"
+    "route route route"
+    "info  info  info";
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+.flight-dep, .flight-arr { display: flex; flex-direction: column; line-height: 1.3; }
+.flight-dep { grid-area: dep; }
+.flight-arr { grid-area: arr; text-align: right; }
+.flight-dep .code, .flight-arr .code { color: var(--muted); font-size: 12px; }
+.flight-dep .time, .flight-arr .time { font-size: 15px; }
+.time sup { color: var(--warn); }
+.flight-route { grid-area: route; min-width: 0; align-self: center; }
+.route-line { display: flex; align-items: center; gap: 4px; height: 6px; }
+.route-seg { flex: 1; height: 1px; background: var(--line); position: relative; }
+.route-seg:not(:last-child)::after {
+  content: ""; position: absolute; right: -3px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px;
+  border-radius: 50%; background: var(--dim);
+}
+.route-stops { margin-top: 2px; }
+.flight-info { grid-area: info; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.flight-airlines { color: var(--muted); }
+.flight-price { grid-area: price; font: 600 18px var(--mono); color: #fff; text-align: right; }
+.book-btn { grid-area: book; }
+.book-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@media (min-width: 720px) {
+  .flight-main {
+    grid-template-columns: auto minmax(90px, 1fr) auto minmax(140px, 1fr) auto auto;
+    grid-template-areas: "dep route arr info price book";
+    row-gap: 0;
+  }
+  .flight-arr { text-align: left; }
+}
+
+.booking-note { margin: 2px 0 0; color: var(--muted); }
+.booking-note.error { color: var(--trap); }
+.booking-note a { color: var(--accent); }
+.show-more { width: 100%; margin-bottom: 8px; text-align: center; }
+
 .badges { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
 @media (min-width: 640px) { .badges { justify-content: flex-end; } }
 .badge { font: 11px var(--mono); padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }

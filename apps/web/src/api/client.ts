@@ -1,7 +1,17 @@
-import type { ProgressEvent, SearchDetail, SearchRecord, SearchRequestInput } from "@skai/core";
+import type { BookingResult, ProgressEvent, SearchDetail, SearchRecord, SearchRequestInput } from "@skai/core";
 
 const MUTATION_HEADERS = { "content-type": "application/json", "x-skai": "1" };
 const STREAM_SILENCE_MS = 30_000;
+
+/** A booking request failed; `code` is the server's error code (e.g. "busy", "blocked", "not_found"). */
+export class BookingError extends Error {
+  code: string;
+  constructor(message: string, code: string) {
+    super(message);
+    this.name = "BookingError";
+    this.code = code;
+  }
+}
 
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -23,6 +33,15 @@ export const listSearches = () => fetch("/api/searches").then((r) => readJson<Se
 export const cancelSearch = async (id: string) => {
   await fetch(`/api/searches/${id}/cancel`, { method: "POST", headers: { "x-skai": "1" } });
 };
+
+export async function bookFlight(id: string): Promise<BookingResult> {
+  const response = await fetch(`/api/itineraries/${id}/book`, { method: "POST", headers: { "x-skai": "1" } });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
+    throw new BookingError(body.message ?? `Request failed (${response.status})`, body.error ?? "unknown");
+  }
+  return (await response.json()) as BookingResult;
+}
 
 /**
  * Streams progress; closes itself after "finished" (otherwise EventSource would reconnect forever)
