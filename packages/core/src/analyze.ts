@@ -12,11 +12,14 @@ export interface AnalyzedItinerary {
 }
 
 export function analyze(items: readonly StoredItinerary[], settings: Settings): AnalyzedItinerary[] {
+  // A trip is "long" compared with the fastest one leaving the same airport on the same day: each
+  // departure airport is a separate starting point (getting to another airport is not counted).
+  const reference = (item: StoredItinerary) => `${item.date}|${item.departure.airport}`;
   const fastest = new Map<string, number>();
-  for (const item of items) fastest.set(item.date, Math.min(fastest.get(item.date) ?? Infinity, item.durationMin));
+  for (const item of items) fastest.set(reference(item), Math.min(fastest.get(reference(item)) ?? Infinity, item.durationMin));
 
   const rows: AnalyzedItinerary[] = items.map((item) => {
-    const traps = detectTraps(item, fastest.get(item.date)!, settings);
+    const traps = detectTraps(item, fastest.get(reference(item))!, settings);
     return { item, traps, excluded: traps.some((t) => t.severity === "exclude"), onFrontier: false, frontierStep: null };
   });
 

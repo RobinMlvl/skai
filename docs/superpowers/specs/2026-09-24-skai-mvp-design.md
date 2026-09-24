@@ -201,7 +201,7 @@ restent `false` dans le MVP (limite documentée ; piste : déplier le détail du
 
 | Piège | Règle (réglable) | Effet |
 |---|---|---|
-| Trajet interminable | `durationMin > maxDurationRatio × plus rapide de la même date` (tous aéroports de la recherche confondus : ce sont des alternatives pour le même voyage) | badge rouge « ×2.3 » |
+| Trajet interminable | `durationMin > maxDurationRatio × plus rapide de la même date` (même aéroport de départ, même date — changé le 2026-09-25 : sur un scan réel MPL/ORY/BCN/CDG → KEF, comparer Montpellier aux vols directs de Paris marquait injustement tous les vols au départ de Montpellier) | badge rouge « ×2.3 » |
 | Escale longue | une escale `> maxLayoverMin` | badge rouge |
 | Escale courte | une escale `< minLayoverMin` | badge « tight connection » |
 | Billets séparés | `flags.selfTransfer` | exclu si `excludeSelfTransfer` |

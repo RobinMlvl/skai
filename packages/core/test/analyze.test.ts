@@ -74,3 +74,14 @@ describe("verdictFor", () => {
     expect(verdictFor(0.5)).toBe("unsure");
   });
 });
+
+describe("long-trip reference", () => {
+  it("compares each flight with the fastest one from its own departure airport", () => {
+    const base = items[2]!; // Lufthansa, 12h45 from Geneva
+    const fromParis = { ...base, id: "paris", durationMin: 215, departure: { ...base.departure, airport: "Paris Orly Airport" } };
+    const fromGeneva = { ...base, id: "geneva", durationMin: 765 };
+    const result = analyze([fromParis, fromGeneva], DEFAULT_SETTINGS);
+    expect(result.find((r) => r.item.id === "geneva")!.traps.map((t) => t.kind)).not.toContain("long-trip");
+  });
+});
+
