@@ -34,6 +34,28 @@ describe("consent", () => {
     expect(new URL(page.url()).hostname).toBe("www.google.com");
   });
 
+  it("survives Google's redirect chain after Reject all (an aborted intermediate navigation)", async () => {
+    await serve(page, (url) => {
+      if (url.hostname === "consent.google.com" && url.pathname === "/save") {
+        return `<script>location.replace("https://www.google.com/travel/flights/search?ok=2")</script>`;
+      }
+      if (url.hostname === "consent.google.com") {
+        return `<button id="reject">Reject all</button>
+          <script>
+            document.getElementById("reject").addEventListener("click", () => {
+              location.href = "https://consent.google.com/save?step=1";
+              location.href = "https://consent.google.com/save?step=2";
+            });
+          </script>`;
+      }
+      return resultsPage("Tue, Nov 10", FIXTURE.labels);
+    });
+    await page.goto("https://consent.google.com/m?continue=y");
+    await handleConsent(page);
+    expect(new URL(page.url()).hostname).toBe("www.google.com");
+    expect(await waitForResults(page, 5_000)).toBe("results");
+  });
+
   it("does nothing outside the consent screen", async () => {
     await serve(page, resultsPage("Tue, Nov 10", []));
     await page.goto("https://www.google.com/travel/flights/search?x=1");

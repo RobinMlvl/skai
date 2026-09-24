@@ -10,11 +10,20 @@ export class BlockedError extends Error {
 
 export type ResultsState = "results" | "empty" | "timeout";
 
+const onConsentScreen = (page: Page) => new URL(page.url()).hostname === "consent.google.com";
+
 /** Google's cookie screen: always the privacy-preserving choice. */
 export async function handleConsent(page: Page): Promise<void> {
-  if (new URL(page.url()).hostname !== "consent.google.com") return;
-  await page.getByRole("button", { name: "Reject all" }).first().click({ timeout: 10_000 });
-  await page.waitForURL((url) => url.hostname !== "consent.google.com", { timeout: 15_000 });
+  if (!onConsentScreen(page)) return;
+  await page.getByRole("button", { name: "Reject all" }).filter({ visible: true }).first().click({ timeout: 10_000 });
+  // Google chains redirects after the click and aborts one of them (net::ERR_ABORTED), which makes
+  // page.waitForURL throw on a fresh profile. Poll the URL instead, then wait for the page to settle.
+  const deadline = Date.now() + 15_000;
+  while (onConsentScreen(page)) {
+    if (Date.now() > deadline) throw new Error("Google's consent screen did not close");
+    await page.waitForTimeout(250);
+  }
+  await page.waitForLoadState("domcontentloaded").catch(() => undefined);
 }
 
 /** Throws BlockedError on Google's block page. SkAI never retries or bypasses it. */
