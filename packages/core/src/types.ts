@@ -2,6 +2,7 @@ import type { SearchRequest } from "./schemas";
 
 export interface Layover {
   durationMin: number;
+  /** Where the layover happens; "A → B" when Google says to transfer between two airports. */
   airport: string;
   city: string;
   overnight: boolean;

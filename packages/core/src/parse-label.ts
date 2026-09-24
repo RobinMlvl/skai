@@ -13,10 +13,13 @@ const MAIN = new RegExp(
     "and arrives at (?<arr>.+?) at (?<arrTime>\\d{1,2}:\\d{2} [AP]M) on (?<arrDay>\\w+, \\w+ \\d{1,2})\\. " +
     "Total duration (?<duration>[^.]+)\\.(?<rest>.*?) ?Select flight$",
 );
-const LAYOVER = /^Layover \(\d+ of \d+\) is a (.+?) (overnight )?layover at (.+?) in (.+)$/;
-// Assumed wording until real labels are captured (see spec §6).
+// "… layover at <airport> in <city>." or, when changing airports, "… layover in <city>. Transfer here from <a> to <b>."
+const LAYOVER = /^Layover \(\d+ of \d+\) is a (.+?) (overnight )?layover (?:at (.+?) in (.+)|in (.+))$/;
+const TRANSFER = /Transfer here from (.+?) to (.+?)\./;
+// Real wording captured on 2026-09-24.
+const AIRPORT_CHANGE = /Transfer here from /;
+// Assumed wording: no separate-ticket label captured yet.
 const SELF_TRANSFER = /self[- ]transfer|separate tickets/i;
-const AIRPORT_CHANGE = /change (?:of )?airports?|airport change|different airport/i;
 const ABBREVIATION = /\b(?:St|Ste|Mt|Ft)\.$/;
 
 const normalize = (label: string) =>
@@ -66,7 +69,10 @@ function parseLayovers(rest: string): Layover[] | null {
     if (!match) return null;
     const durationMin = parseDuration(match[1]!);
     if (durationMin === null) return null;
-    layovers.push({ durationMin, airport: match[3]!, city: firstSentence(match[4]!), overnight: Boolean(match[2]) });
+    const city = firstSentence(match[4] ?? match[5]!);
+    const transfer = TRANSFER.exec(chunk);
+    const airport = transfer ? `${transfer[1]} → ${transfer[2]}` : (match[3] ?? city);
+    layovers.push({ durationMin, airport, city, overnight: Boolean(match[2]) });
   }
   return layovers;
 }
