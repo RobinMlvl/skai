@@ -48,9 +48,9 @@ describe("analyze on real results", () => {
   });
 
   it("flags the 30-hour traps against the fastest flight of the day", () => {
-    expect(byId.get("f6")!.traps.map((t) => t.label)).toEqual(["2.5× the fastest", "18h40 layover"]);
-    expect(byId.get("f7")!.traps.map((t) => t.label)).toEqual(["2.1× the fastest", "13h25 layover"]);
-    expect(byId.get("f9")!.traps.map((t) => t.label)).toEqual(["2.3× the fastest", "16h50 layover"]);
+    expect(byId.get("f6")!.traps.map((t) => t.label)).toEqual(["2.5× the fastest from this airport", "18h40 layover"]);
+    expect(byId.get("f7")!.traps.map((t) => t.label)).toEqual(["2.1× the fastest from this airport", "13h25 layover"]);
+    expect(byId.get("f9")!.traps.map((t) => t.label)).toEqual(["2.3× the fastest from this airport", "16h50 layover"]);
     expect(byId.get("f5")!.traps.map((t) => t.label)).toEqual(["8h10 layover"]);
     expect(byId.get("f2")!.traps).toEqual([]);
   });
@@ -82,6 +82,17 @@ describe("long-trip reference", () => {
     const fromGeneva = { ...base, id: "geneva", durationMin: 765 };
     const result = analyze([fromParis, fromGeneva], DEFAULT_SETTINGS);
     expect(result.find((r) => r.item.id === "geneva")!.traps.map((t) => t.kind)).not.toContain("long-trip");
+  });
+
+  it("still flags a long flight against a faster one from the same airport", () => {
+    const base = items[2]!; // Lufthansa, 12h45 from Geneva
+    const fromParis = { ...base, id: "paris", durationMin: 215, departure: { ...base.departure, airport: "Paris Orly Airport" } };
+    const fromGeneva = { ...base, id: "geneva", durationMin: 765 };
+    const longFromGeneva = { ...base, id: "geneva-long", durationMin: 2_000 };
+    const result = analyze([fromParis, fromGeneva, longFromGeneva], DEFAULT_SETTINGS);
+    expect(result.find((r) => r.item.id === "geneva-long")!.traps.find((t) => t.kind === "long-trip")?.label).toBe(
+      "2.6× the fastest from this airport",
+    );
   });
 });
 

@@ -8,3 +8,8 @@ export function formatDuration(min: number): string {
 export function formatPrice(eur: number): string {
   return `€${eur.toLocaleString("en-US")}`;
 }
+
+/** Text folded for comparisons: diacritics removed, lower case ("Zürich" → "zurich"). */
+export function foldText(text: string): string {
+  return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}

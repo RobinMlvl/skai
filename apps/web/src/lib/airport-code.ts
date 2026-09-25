@@ -1,11 +1,10 @@
+import { foldText } from "@skai/core";
 import { airportByIata } from "../airports/search";
 
 const IGNORED = new Set(["airport", "international"]);
 
-const fold = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-
 const words = (text: string) =>
-  fold(text)
+  foldText(text)
     .split(/[^a-z0-9]+/)
     .filter((word) => word && !IGNORED.has(word));
 

@@ -1,5 +1,6 @@
 import {
   flightIdentity,
+  foldText,
   searchUrl,
   type BookingResult,
   type SearchRequest,
@@ -41,8 +42,6 @@ export interface BookerOptions {
 
 const SELLER = /^Continue to book with /i;
 
-const fold = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
-
 /**
  * The seller behind a Google "Continue to book with …" label, when it is one of the flight's airlines.
  * Seen live: "… with Etihad airline for 516 euros" and "… with Icelandair, Economy Light for 283 euros".
@@ -50,7 +49,7 @@ const fold = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, 
 export function airlineSeller(label: string, airlines: readonly string[]): string | null {
   const name = label.replace(SELLER, "").split(/ for [\d,.]+ /)[0]!;
   const seller = name.replace(/ airline$/i, "").split(",")[0]!.trim();
-  const isAirline = / airline$/i.test(name) || airlines.some((airline) => fold(airline) === fold(seller));
+  const isAirline = / airline$/i.test(name) || airlines.some((airline) => foldText(airline) === foldText(seller));
   return isAirline && seller ? seller : null;
 }
 const STEP_MS = 250;

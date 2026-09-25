@@ -88,6 +88,7 @@ Hébergement futur : SQLite → Postgres, file en mémoire → pg-boss, ajout d'
 | GET | `/searches/:id` | recherche + itinéraires + jugements |
 | GET | `/searches/:id/events` | flux SSE de progression |
 | POST | `/searches/:id/cancel` | annule (AbortSignal) |
+| POST | `/itineraries/:id/book` | ouvre la réservation de ce vol dans la fenêtre Chrome de SkAI (§12) → `BookingResult` |
 
 **Sécurité locale** (un serveur qui pilote Chrome ne doit pas être appelable par une page web
 quelconque) : écoute sur `127.0.0.1` uniquement ; en-tête `Host` limité aux origines
@@ -277,12 +278,14 @@ Restantes :
 
 ## 12. Évolutions du 2026-09-25
 
-- **Dates conservées** : si Google bloque ou si l'utilisateur annule, les dates déjà lues sont
-  enregistrées et affichées (statut `blocked` / `cancelled`). Après un blocage, Jev juge quand même la
-  préférence (il ne touche pas Google) ; après une annulation, non.
+- **Dates conservées** : si Google bloque, si l'utilisateur annule ou si une erreur interrompt le scan,
+  les dates déjà lues sont enregistrées et affichées (statut `blocked` / `cancelled` / `failed`). Après
+  un blocage, Jev juge quand même la préférence (il ne touche pas Google) ; après une annulation, non.
 - **Réservation au clic** : `POST /api/itineraries/:id/book` ouvre, dans un nouvel onglet de la fenêtre
-  Chrome de SkAI, la recherche du jour, clique la ligne du même vol (identité = libellé sans le prix,
-  car Google re-tarife) puis « Continue to book with <compagnie> airline ». Sans vendeur compagnie : la
+  Chrome de SkAI, la recherche du jour, clique la ligne visible du même vol (identité = libellé sans le
+  prix, car Google re-tarife ; onglet « Cheapest » si le vol n'est listé que là) puis le vendeur
+  compagnie : reconnu au mot « airline » (« Continue to book with Etihad airline for … ») ou au nom d'une
+  compagnie du vol (« Continue to book with Icelandair, Economy Light for … »). Sans vendeur compagnie : la
   page « Booking options » reste ouverte. Vol disparu : les résultats restent ouverts. Une réservation
   à la fois (409 sinon) ; page de blocage → 409.
 

@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { formatDuration, formatPrice } from "../src/format";
+import { foldText, formatDuration, formatPrice } from "../src/format";
 
 it("formats durations compactly", () => {
   expect(formatDuration(900)).toBe("15h");
@@ -9,4 +9,10 @@ it("formats durations compactly", () => {
 
 it("formats euro prices", () => {
   expect(formatPrice(1234)).toBe("€1,234");
+});
+
+it("folds text for comparisons: no diacritics, lower case", () => {
+  expect(foldText("Zürich")).toBe("zurich");
+  expect(foldText("Montpellier-Méditerranée")).toBe("montpellier-mediterranee");
+  expect(foldText("İstanbul")).toBe("istanbul");
 });

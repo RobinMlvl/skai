@@ -25,7 +25,7 @@ describe("detectTraps", () => {
   });
 
   it("flags trips more than maxDurationRatio times the fastest of the day", () => {
-    expect(kinds({ ...base, durationMin: 1875 }, 765)).toEqual([["long-trip", "warn", "2.5× the fastest"]]);
+    expect(kinds({ ...base, durationMin: 1875 }, 765)).toEqual([["long-trip", "warn", "2.5× the fastest from this airport"]]);
     expect(kinds({ ...base, durationMin: 1530 }, 765)).toEqual([]);
   });
 

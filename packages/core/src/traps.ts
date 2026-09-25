@@ -20,7 +20,7 @@ export function detectTraps(itinerary: Itinerary, fastestSameDateMin: number, se
   const traps: Trap[] = [];
   const ratio = itinerary.durationMin / fastestSameDateMin;
   if (ratio > settings.maxDurationRatio) {
-    traps.push({ kind: "long-trip", severity: "warn", label: `${ratio.toFixed(1)}× the fastest` });
+    traps.push({ kind: "long-trip", severity: "warn", label: `${ratio.toFixed(1)}× the fastest from this airport` });
   }
   const durations = itinerary.layovers.map((l) => l.durationMin);
   const longest = Math.max(0, ...durations);

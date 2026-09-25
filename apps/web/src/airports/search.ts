@@ -1,3 +1,4 @@
+import { foldText } from "@skai/core";
 import data from "./airports.json";
 
 export interface Airport {
@@ -14,19 +15,17 @@ const BY_IATA = new Map(AIRPORTS.map((airport) => [airport.iata, airport]));
 
 export const airportByIata = (code: string) => BY_IATA.get(code);
 
-const fold = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-
 /** City as a short label: "Paris (Orly, Val-de-Marne)" → "Paris", "Montpellier/Méditerranée" → "Montpellier". */
 export const shortCity = (city: string) => city.split(/[/(]/)[0]!.trim() || city;
 
 export function searchAirports(query: string, limit = 8): Airport[] {
-  const q = fold(query.trim());
+  const q = foldText(query.trim());
   if (!q) return [];
   const scored: [number, Airport][] = [];
   for (const airport of AIRPORTS) {
     const code = airport.iata.toLowerCase();
-    const city = fold(airport.city);
-    const name = fold(airport.name);
+    const city = foldText(airport.city);
+    const name = foldText(airport.name);
     const score =
       code === q ? 0 : code.startsWith(q) ? 1 : city.startsWith(q) ? 2 : name.startsWith(q) ? 3 : city.includes(q) || name.includes(q) ? 4 : -1;
     if (score >= 0) scored.push([score, airport]);
