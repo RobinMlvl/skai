@@ -106,6 +106,7 @@ export function Globe({ origins, destinations, active, size }: Props) {
 
       if (current !== shown) {
         shown = current;
+        settled = false; // a new route must be drawn at least once, even when it settles in this frame (reduced motion)
         const center = centerOf([...current.from, ...current.to]);
         if (center) {
           const [targetPhi, targetTheta] = anglesFor(center[0], center[1]);
