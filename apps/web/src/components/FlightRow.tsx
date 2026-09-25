@@ -32,8 +32,10 @@ export function FlightRow({ row, probability, hasPreference, origins, destinatio
   const note = booking.note?.itineraryId === it.id ? booking.note.outcome : null;
 
   const activate = () => booking.book(it.id);
+  // The whole row books, except its own controls, the booking note, and a drag that selected text.
   const handleRowClick = (event: MouseEvent<HTMLElement>) => {
-    if ((event.target as HTMLElement).closest("a")) return;
+    if ((event.target as HTMLElement).closest("a, button, .booking-note")) return;
+    if (window.getSelection()?.toString()) return;
     activate();
   };
 
@@ -85,10 +87,7 @@ export function FlightRow({ row, probability, hasPreference, origins, destinatio
           className="ghost book-btn"
           disabled={bookingDisabled}
           aria-label={`Book ${it.airlines[0]} flight on ${formatDay(it.date)} at ${it.departure.time}, ${formatPrice(it.priceEur)}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            activate();
-          }}
+          onClick={activate}
         >
           {isOpening ? "Opening…" : "Book"}
         </button>
@@ -134,7 +133,7 @@ function BookingNote({ outcome }: { outcome: BookingOutcome }) {
       );
     }
     if (result.status === "options") {
-      return <p className="booking-note small">No airline sells this flight directly. Pick a seller in SkAI's Chrome window.</p>;
+      return <p className="booking-note small">Google's booking options are open in SkAI's Chrome window. Pick a seller there.</p>;
     }
     return <p className="booking-note small">Google no longer lists this flight. Its results are open in SkAI's Chrome window.</p>;
   }

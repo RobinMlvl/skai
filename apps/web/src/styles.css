@@ -45,20 +45,20 @@ h2 { font: 600 15px var(--sans); color: var(--text); margin: 24px 0 10px; }
 .topbar h1 em { color: var(--trap); font-style: normal; text-shadow: 0 0 12px rgba(255, 69, 69, 0.6); }
 .tag { font: 500 13px var(--sans); color: var(--muted); }
 
+/* DOM order is form, results, recent scans: one column on mobile; on desktop recent scans sit under the form. */
 .layout { display: grid; gap: 16px; padding: 16px; max-width: 1280px; margin: 0 auto; }
 .left { display: grid; gap: 16px; align-content: start; }
 .right { display: grid; gap: 16px; align-content: start; min-width: 0; }
 @media (min-width: 960px) {
-  .layout { grid-template-columns: 360px minmax(0, 1fr); align-items: start; }
-  .left { position: sticky; top: 72px; }
-}
-@media (max-width: 959px) {
-  /* Form, then radar band + results, then "Recent scans" last (DOM order stays form/history/right). */
-  .left { display: contents; }
-  .left > form { order: 1; }
-  .left > .error { order: 1; }
-  .right { order: 2; }
-  .left > .history { order: 3; }
+  .layout {
+    grid-template-columns: 360px minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas: "form main" "history main";
+    align-items: start;
+  }
+  .left { grid-area: form; }
+  .right { grid-area: main; }
+  .layout > .history { grid-area: history; }
 }
 
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }

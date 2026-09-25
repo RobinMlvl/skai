@@ -1,7 +1,7 @@
 import { analyze, type SearchDetail, type Settings } from "@skai/core";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { useBooking } from "../state/useBooking";
+import type { BookingSession } from "../state/useBooking";
 import { FlightRow } from "./FlightRow";
 import { ResultsChart } from "./ResultsChart";
 import { StatusBanner } from "./StatusBanner";
@@ -15,15 +15,16 @@ interface Props {
   detail: SearchDetail;
   /** The radar band's status slot; the summary portals there when a search is loaded (not running). */
   summaryHost: HTMLElement | null;
+  /** Owned by App, so a booking in flight (and its note) survives switching searches. */
+  booking: BookingSession;
 }
 
 /** Keyed by search id in App, so a new search starts from its own settings. */
-export function ResultsView({ detail, summaryHost }: Props) {
+export function ResultsView({ detail, summaryHost, booking }: Props) {
   const [settings, setSettings] = useState<Settings>(detail.search.request.settings);
   const [showTrapped, setShowTrapped] = useState(false);
   const [otherLimit, setOtherLimit] = useState(OTHERS_PAGE);
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const booking = useBooking();
 
   const rows = useMemo(() => analyze(detail.itineraries, settings), [detail.itineraries, settings]);
   const probabilities = useMemo(

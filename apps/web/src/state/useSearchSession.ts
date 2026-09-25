@@ -7,13 +7,15 @@ import {
   type SearchRequest,
   type SearchRequestInput,
 } from "@skai/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cancelSearch, createSearch, getSearch, listSearches, subscribeProgress } from "../api/client";
 
 /** The scan the user explicitly opened (click in History, or the on-load auto-open) — for pre-filling the form. */
 export interface OpenedSearch {
   id: string;
   request: SearchRequest;
+  /** New on every open, even of the same search: key the form on it so it re-fills. */
+  nonce: number;
 }
 
 export interface SearchSession {
@@ -52,6 +54,9 @@ export function useSearchSession(): SearchSession {
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [autoOpened, setAutoOpened] = useState(false);
+  // start() calls so far: an open() that resolves after a later start() must not replace that scan.
+  const starts = useRef(0);
+  const opens = useRef(0);
 
   const refreshHistory = useCallback(() => {
     listSearches().then(setHistory, (e: unknown) => setError(messageOf(e)));
@@ -111,6 +116,7 @@ export function useSearchSession(): SearchSession {
 
   const start = useCallback(
     async (input: SearchRequestInput) => {
+      starts.current += 1;
       setError(null);
       setDetail(null);
       setEvents([]);
@@ -130,9 +136,12 @@ export function useSearchSession(): SearchSession {
 
   const open = useCallback(async (id: string) => {
     setError(null);
+    const startsBefore = starts.current;
     try {
       const found = await getSearch(id);
-      setOpened({ id, request: found.search.request });
+      if (starts.current !== startsBefore) return; // the user started a scan meanwhile: it wins
+      opens.current += 1;
+      setOpened({ id, request: found.search.request, nonce: opens.current });
       if (isTerminal(found.search.status)) {
         setLiveId(null);
         setEvents([]);
@@ -142,16 +151,16 @@ export function useSearchSession(): SearchSession {
         setLiveId(id);
       }
     } catch (e) {
-      setError(messageOf(e));
+      if (starts.current === startsBefore) setError(messageOf(e));
     }
   }, []);
 
-  // On first load, follow straight into the most recent search: only once, and only if the
-  // user (or a start() already in flight) hasn't opened anything by the time history arrives.
+  // On first load, follow straight into the most recent search: only once, and only if the user
+  // hasn't opened a search or started a scan (even one still starting) by the time history arrives.
   useEffect(() => {
     if (autoOpened || history.length === 0) return;
     setAutoOpened(true);
-    if (detail || liveId) return;
+    if (detail || liveId || starts.current > 0) return;
     void open(history[0]!.id);
   }, [history, autoOpened, detail, liveId, open]);
 

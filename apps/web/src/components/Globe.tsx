@@ -74,6 +74,8 @@ export function Globe({ origins, destinations, active, size }: Props) {
     let [phi, theta] = [0.4, 0.25];
     let move: { from: LatLon; delta: LatLon; start: number } | null = null;
     let shown: typeof route | null = null;
+    let settled = false; // the last frame drawn was still: nothing to redraw until something moves
+    const host = canvas.parentElement; // cobe wraps the canvas in a div of its own
 
     const globe = createGlobe(canvas, {
       devicePixelRatio: 2,
@@ -110,18 +112,27 @@ export function Globe({ origins, destinations, active, size }: Props) {
           move = { from: [phi, theta], delta: [turn(phi, targetPhi), targetTheta - theta], start: now };
         }
       }
+      const spinning = !move && !hasRoute && !reducedMotion;
       if (move) {
         const k = reducedMotion ? 1 : Math.min(1, (now - move.start) / CAMERA_MS);
         const eased = EASE_IN_OUT(k);
         phi = move.from[0] + move.delta[0] * eased;
         theta = move.from[1] + move.delta[1] * eased;
         if (k >= 1) move = null;
-      } else if (!hasRoute && !reducedMotion) {
+      } else if (spinning) {
         phi += IDLE_SPIN;
       }
 
       const rise = reducedMotion ? 1 : EASE_OUT(Math.min(1, (now - changedAt) / ARC_MS));
-      const breath = activeRef.current && !reducedMotion ? 0.5 - 0.5 * Math.cos((2 * Math.PI * now) / BREATH_MS) : 0;
+      const breathing = activeRef.current && !reducedMotion;
+      // Each update re-uploads the buffers and restyles the page (cobe): skip it once nothing moves.
+      const still = !move && !spinning && !breathing && rise >= 1;
+      if (still && settled) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+      settled = still;
+      const breath = breathing ? 0.5 - 0.5 * Math.cos((2 * Math.PI * now) / BREATH_MS) : 0;
       const markers: Marker[] = [
         ...current.from.map((a) => ({ location: [a.lat, a.lon] as LatLon, size: 0.045 + 0.015 * breath })),
         ...current.to.map((a) => ({ location: [a.lat, a.lon] as LatLon, size: 0.055 + 0.02 * breath, color: ALERT })),
@@ -142,6 +153,9 @@ export function Globe({ origins, destinations, active, size }: Props) {
     return () => {
       cancelAnimationFrame(frame);
       globe.destroy();
+      // destroy() leaves cobe's wrapper: unwrap, or each new size would nest one more.
+      const wrapper = canvas.parentElement;
+      if (wrapper && wrapper !== host) wrapper.replaceWith(canvas);
     };
   }, [size]);
 

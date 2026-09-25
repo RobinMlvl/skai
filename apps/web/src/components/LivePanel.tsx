@@ -4,11 +4,11 @@ import { orbState } from "../lib/orb-state";
 
 interface Props {
   events: ProgressEvent[];
-  running: boolean;
   onCancel(): void;
 }
 
-export function LivePanel({ events, running, onCancel }: Props) {
+/** Shown only while a scan runs. */
+export function LivePanel({ events, onCancel }: Props) {
   const last = events.at(-1);
   // dateIndex is 1-based and sent when a date starts: count only the dates already read.
   const percent = last?.dateCount ? Math.round((((last.dateIndex ?? 1) - 1) / last.dateCount) * 100) : null;
@@ -20,13 +20,11 @@ export function LivePanel({ events, running, onCancel }: Props) {
           <div className="live-phase">{last?.phase ?? "queued"}</div>
           <div>{last?.message ?? "Waiting to start…"}</div>
         </div>
-        {running && (
-          <button type="button" className="ghost" onClick={onCancel}>
-            Cancel
-          </button>
-        )}
+        <button type="button" className="ghost" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
-      {percent !== null && running && (
+      {percent !== null && (
         <div className="bar" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
           <div style={{ width: `${percent}%` }} />
         </div>

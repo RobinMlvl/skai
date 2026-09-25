@@ -7,9 +7,9 @@ export function StatusBanner({ detail }: { detail: SearchDetail }) {
   if (status === "blocked" || status === "failed") lines.push({ tone: "bad", text: error ?? "The scan failed." });
   if (status === "cancelled") lines.push({ tone: "warn", text: "Scan cancelled." });
   if (status === "partial" && stats) lines.push({ tone: "warn", text: `Missing dates: ${stats.datesMissing.join(", ")}` });
-  if ((status === "blocked" || status === "cancelled") && stats && stats.datesOk > 0) {
+  if ((status === "blocked" || status === "cancelled" || status === "failed") && stats && stats.datesOk > 0) {
     const total = dateRange(request.dateFrom, request.dateTo).length;
-    const reason = status === "blocked" ? "Google blocked the scan" : "you cancelled";
+    const reason = { blocked: "Google blocked the scan", cancelled: "you cancelled", failed: "the scan failed" }[status];
     lines.push({ tone: "warn", text: `Kept the ${stats.datesOk} of ${total} dates scanned before ${reason}.` });
   }
   for (const warning of warnings) lines.push({ tone: "warn", text: warning });

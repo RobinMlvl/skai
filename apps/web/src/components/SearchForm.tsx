@@ -16,7 +16,7 @@ import { TrapRules } from "./TrapRules";
 
 interface Props {
   disabled: boolean;
-  /** The opened scan's request, if any: pre-fills the form. Pair with a `key` on the opened id so it re-initialises. */
+  /** The opened scan's request, if any: pre-fills the form. Pair with a `key` that changes on every open so it re-initialises. */
   initial?: SearchRequest;
   onSubmit(input: SearchRequestInput): void;
   onSelectionChange(origins: string[], destinations: string[]): void;
@@ -108,6 +108,7 @@ export function SearchForm({ disabled, initial, onSubmit, onSelectionChange }: P
             {formatDay(dateTo)}
           </button>
         </div>
+        {/* The native picker's "Clear" sends "": ignored, both dates always stay set. */}
         <input
           ref={dateFromInput}
           className="hidden-date"
@@ -117,7 +118,7 @@ export function SearchForm({ disabled, initial, onSubmit, onSelectionChange }: P
           min={today}
           value={dateFrom}
           disabled={disabled}
-          onChange={(e) => changeDateFrom(e.target.value)}
+          onChange={(e) => e.target.value && changeDateFrom(e.target.value)}
         />
         <input
           ref={dateToInput}
@@ -128,7 +129,7 @@ export function SearchForm({ disabled, initial, onSubmit, onSelectionChange }: P
           min={dateFrom}
           value={dateTo}
           disabled={disabled}
-          onChange={(e) => setDateTo(e.target.value)}
+          onChange={(e) => e.target.value && setDateTo(e.target.value)}
         />
         <p className={overMax ? "field-note mono small warn" : "field-note mono small"}>
           {dayCount} date{dayCount === 1 ? "" : "s"}

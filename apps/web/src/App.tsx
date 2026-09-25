@@ -6,12 +6,14 @@ import { LivePanel } from "./components/LivePanel";
 import { ResultsView } from "./components/ResultsView";
 import { SearchForm } from "./components/SearchForm";
 import { orbState } from "./lib/orb-state";
+import { useBooking } from "./state/useBooking";
 import { useSearchSession } from "./state/useSearchSession";
 
 const DESKTOP_QUERY = "(min-width: 960px)";
 
 export function App() {
   const session = useSearchSession();
+  const booking = useBooking();
   const [selection, setSelection] = useState({ origins: [] as string[], destinations: [] as string[] });
   const onSelectionChange = useCallback(
     (origins: string[], destinations: string[]) => setSelection({ origins, destinations }),
@@ -51,17 +53,17 @@ export function App() {
         </h1>
         <span className="tag">Finds the flights worth taking</span>
       </header>
+      {/* DOM (and keyboard) order: form, results, recent scans. On desktop, CSS puts recent scans under the form. */}
       <main className="layout">
         <section className="left">
           <SearchForm
-            key={session.opened?.id ?? "new"}
+            key={session.opened?.nonce ?? "new"}
             initial={session.opened?.request}
             disabled={session.running}
             onSubmit={session.start}
             onSelectionChange={onSelectionChange}
           />
           {session.error && <p className="error" role="alert">{session.error}</p>}
-          <History items={session.history} activeId={session.detail?.search.id ?? null} onOpen={session.open} />
         </section>
         <section className="right">
           <div className="radar-band" ref={radarRef}>
@@ -70,12 +72,15 @@ export function App() {
             </div>
             <div className="radar-status" ref={setStatusHost}>
               {session.running && session.events.length > 0 && (
-                <LivePanel events={session.events} running={session.running} onCancel={session.cancel} />
+                <LivePanel events={session.events} onCancel={session.cancel} />
               )}
             </div>
           </div>
-          {session.detail && <ResultsView key={session.detail.search.id} detail={session.detail} summaryHost={statusHost} />}
+          {session.detail && (
+            <ResultsView key={session.detail.search.id} detail={session.detail} summaryHost={statusHost} booking={booking} />
+          )}
         </section>
+        <History items={session.history} activeId={session.detail?.search.id ?? null} onOpen={session.open} />
       </main>
     </div>
   );
