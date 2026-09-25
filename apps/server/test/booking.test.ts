@@ -29,33 +29,51 @@ async function serveAll(html: (url: URL) => string) {
   );
 }
 
-const searchPage = (labels: readonly string[]) => `<!doctype html><html><body>
+const rows = (labels: readonly string[]) =>
+  labels.map((l) => `<div role="link" tabindex="0" aria-label="${escapeAttr(l)}">flight</div>`).join("");
+
+// Google's result tabs: the "Cheapest" list is in the page but hidden until its tab is selected.
+const searchPage = (labels: readonly string[], cheapest: readonly string[]) => `<!doctype html><html><body>
   <input aria-label="Departure" value="Tue, Nov 10">
-  ${labels.map((l) => `<div role="link" tabindex="0" aria-label="${escapeAttr(l)}">flight</div>`).join("")}
+  <div role="tab" onclick="best.hidden = true; cheap.hidden = false">Cheapest from 452 euros</div>
+  <div id="best">${rows(labels)}</div>
+  <div id="cheap" hidden>${rows(cheapest)}</div>
   <script>
     document.querySelectorAll("[role=link]").forEach((row, i) =>
       row.addEventListener("click", () => { location.href = "https://www.google.com/travel/flights/booking?row=" + i; }));
   </script>
 </body></html>`;
 
-const bookingPage = (sellers: string[]) => `<!doctype html><html><body>
+// "Continue" opens the airline in a new tab: directly, empty first then redirected, or not at all.
+type Opens = "tab" | "blank-tab" | "nothing";
+const bookingPage = (sellers: string[], hidden: string[], opens: Opens) => `<!doctype html><html><body>
   <h2>Booking options</h2>
   ${sellers.map((s) => `<button aria-label="${escapeAttr(s)}">Continue</button>`).join("")}
+  ${hidden.map((s) => `<button hidden aria-label="${escapeAttr(s)}">Continue</button>`).join("")}
   <script>
-    const row = new URLSearchParams(location.search).get("row");
+    const url = "https://www.etihad.com/booking?row=" + new URLSearchParams(location.search).get("row");
     document.querySelectorAll("button").forEach((b) =>
-      b.addEventListener("click", () => window.open("https://www.etihad.com/booking?row=" + row)));
+      b.addEventListener("click", () => {
+        if ("${opens}" === "tab") window.open(url);
+        if ("${opens}" !== "blank-tab") return;
+        const tab = window.open("about:blank");
+        setTimeout(() => { tab.location.href = url; }, 500);
+      }));
   </script>
 </body></html>`;
 
 const ETIHAD = "Continue to book with Etihad airline for 516 euros (Equivalent to 485 Swiss francs on Etihad)";
 const BRAVOFLY = "Continue to book with Bravofly for 510 euros";
 
-function site(labels: readonly string[], sellers: string[]) {
+function site(
+  labels: readonly string[],
+  sellers: string[],
+  { hidden = [] as string[], cheapest = [] as string[], opens = "tab" as Opens } = {},
+) {
   return (url: URL) => {
     if (url.hostname === "www.etihad.com") return "<h1>Etihad booking</h1>";
-    if (url.pathname.startsWith("/travel/flights/booking")) return bookingPage(sellers);
-    return searchPage(labels);
+    if (url.pathname.startsWith("/travel/flights/booking")) return bookingPage(sellers, hidden, opens);
+    return searchPage(labels, cheapest);
   };
 }
 
@@ -67,6 +85,20 @@ const booker = (overrides: Partial<Parameters<typeof createBooker>[0]> = {}) =>
     sellersTimeoutMs: 3_000,
     ...overrides,
   });
+
+/** Rejections nobody handled while `run` ran and `graceMs` after it (a stray wait can reject late). */
+async function unhandledDuring(run: () => Promise<void>, graceMs: number): Promise<unknown[]> {
+  const reasons: unknown[] = [];
+  const record = (reason: unknown) => reasons.push(reason);
+  process.on("unhandledRejection", record);
+  try {
+    await run();
+    await new Promise((resolve) => setTimeout(resolve, graceMs));
+  } finally {
+    process.off("unhandledRejection", record);
+  }
+  return reasons;
+}
 
 describe("booking a flight on the airline's site", () => {
   it("clicks the same flight even if its price changed, then opens the airline's site", async () => {
@@ -94,6 +126,16 @@ describe("booking a flight on the airline's site", () => {
     });
   });
 
+  it("selects Google's Cheapest tab when the flight is listed only there", async () => {
+    await serveAll(site([lufthansa!.rawLabel], [ETIHAD], { cheapest: [turkishOman!.rawLabel, etihad!.rawLabel] }));
+    expect(await booker()(request, target)).toEqual({ status: "airline", seller: "Etihad", url: "https://www.etihad.com/booking?row=2" });
+  });
+
+  it("waits for the airline's page when the new tab opens empty first", async () => {
+    await serveAll(site([etihad!.rawLabel], [ETIHAD], { opens: "blank-tab" }));
+    expect(await booker()(request, target)).toEqual({ status: "airline", seller: "Etihad", url: "https://www.etihad.com/booking?row=0" });
+  });
+
   it("stops on Google's booking options when no airline sells the flight", async () => {
     await serveAll(site([etihad!.rawLabel], [BRAVOFLY]));
     expect(await booker()(request, target)).toEqual({ status: "options" });
@@ -112,9 +154,36 @@ describe("booking a flight on the airline's site", () => {
     expect(await first).toEqual({ status: "options" });
   });
 
+  it("ignores a seller Google keeps hidden", async () => {
+    await serveAll(site([etihad!.rawLabel], [BRAVOFLY], { hidden: [ETIHAD] }));
+    const stray = await unhandledDuring(async () => {
+      expect(await booker({ airlineTimeoutMs: 1_000 })(request, target)).toEqual({ status: "options" });
+    }, 1_500);
+    expect(stray).toEqual([]);
+  });
+
+  it("fails cleanly when the seller click fails, leaving no rejection unhandled", async () => {
+    await serveAll(site([etihad!.rawLabel], [ETIHAD, ETIHAD])); // two identical sellers: the click is ambiguous
+    const stray = await unhandledDuring(async () => {
+      await expect(booker({ airlineTimeoutMs: 1_000 })(request, target)).rejects.toThrow(/strict mode violation/);
+    }, 1_500);
+    expect(stray).toEqual([]);
+  });
+
+  it("says so when Google does not open the airline's site", async () => {
+    await serveAll(site([etihad!.rawLabel], [ETIHAD], { opens: "nothing" }));
+    await expect(booker({ airlineTimeoutMs: 1_000 })(request, target)).rejects.toThrow("Google did not open the airline's site.");
+  });
+
   it("stops on a block page", async () => {
     await serveAll(() => "<p>Our systems have detected unusual traffic from your computer network.</p>");
     await expect(booker()(request, target)).rejects.toBeInstanceOf(BlockedError);
+  });
+
+  it("reports a block page that appears late as a block, not a missing flight", async () => {
+    const block = "<p>Our systems have detected unusual traffic from your computer network.</p>";
+    await serveAll(() => `<script>setTimeout(() => { document.body.innerHTML = ${JSON.stringify(block)}; }, 300);</script>`);
+    await expect(booker({ resultsTimeoutMs: 1_000 })(request, target)).rejects.toBeInstanceOf(BlockedError);
   });
 });
 
