@@ -15,6 +15,8 @@ it("reads overrides and trims the key", () => {
 
 it("rejects an invalid port", () => {
   expect(() => loadConfig({ SKAI_PORT: "abc" })).toThrow("Invalid SKAI_PORT");
+  expect(() => loadConfig({ SKAI_WEB_PORT: "abc" })).toThrow("Invalid SKAI_WEB_PORT: abc");
+  expect(() => loadConfig({ SKAI_WEB_PORT: "70000" })).toThrow("Invalid SKAI_WEB_PORT");
 });
 
 it("reads the web dev port", () => {

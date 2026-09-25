@@ -147,6 +147,52 @@ describe("search runner", () => {
     expect(detail.search.stats?.datesOk).toBe(1);
   });
 
+  it("keeps the dates read before an unexpected error", async () => {
+    const source = sourceOf(async () => {
+      throw new ScanInterruptedError(new Error("Chrome crashed"), [ok("2026-11-10")]);
+    });
+    const detail = await runSearch(sampleRequest(), source);
+    expect(detail.search).toMatchObject({ status: "failed", error: "Chrome crashed" });
+    expect(detail.itineraries).toHaveLength(10);
+    expect(detail.search.stats?.datesOk).toBe(1);
+    expect(events.at(-1)).toMatchObject({ phase: "finished", message: "Scan failed" });
+  });
+
+  it("ends failed, and still sends finished last, when a step after the scan throws", async () => {
+    const source = sourceOf(async () => ({ dates: [ok("2026-11-10")] }));
+    const run = async (broken: Partial<SearchStore>) => {
+      store.create("s1", sampleRequest({ dateTo: "2026-11-10" }), "2026-09-24T10:00:00.000Z");
+      const runner = createSearchRunner({ store: { ...store, ...broken }, bus, source, jev: null, now: () => "2026-09-24T10:00:01.000Z" });
+      await runner("s1", new AbortController().signal);
+      return store.get("s1")!;
+    };
+
+    // Saving the flights fails: nothing is kept.
+    const unsaved = await run({
+      saveItineraries: () => {
+        throw new Error("disk full");
+      },
+    });
+    expect(unsaved.search).toMatchObject({ status: "failed", error: "disk full" });
+    expect(unsaved.search.stats?.datesOk).toBe(0);
+    expect(events.at(-1)).toMatchObject({ phase: "finished", message: "Scan failed" });
+
+    // The flights are saved, then a later step fails: they are kept.
+    store.close();
+    store = openSqliteStore(":memory:");
+    events.length = 0;
+    const saved = await run({
+      setProgress: (id, event) => {
+        if (event.phase === "analyzing") throw new Error("disk full");
+        store.setProgress(id, event);
+      },
+    });
+    expect(saved.search).toMatchObject({ status: "failed", error: "disk full" });
+    expect(saved.itineraries).toHaveLength(10);
+    expect(saved.search.stats?.datesOk).toBe(1);
+    expect(events.map((e) => e.phase)).toEqual(["finished"]);
+  });
+
   it("keeps the results when the cancel lands during the last date", async () => {
     const controller = new AbortController();
     const source = sourceOf(async () => {

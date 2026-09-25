@@ -1,9 +1,9 @@
 import { chromium, type BrowserContext, type Page } from "playwright";
 
 export interface BrowserSession {
-  /** The tab scans run in. */
+  /** The tab scans run in: the window's first tab, or a new one if the user closed it. */
   page(): Promise<Page>;
-  /** A new tab in SkAI's window (bookings open there, beside the scan tab). */
+  /** A new tab in SkAI's window (bookings open there, beside the scan tab; never used for scans). */
   newPage(): Promise<Page>;
   close(): Promise<void>;
 }
@@ -11,6 +11,7 @@ export interface BrowserSession {
 /** One persistent Chrome profile dedicated to SkAI, launched on first use and reused. */
 export function createBrowserSession(options: { profileDir: string; headless?: boolean }): BrowserSession {
   let context: Promise<BrowserContext> | null = null;
+  let scanTab: Page | null = null;
 
   const open = () => {
     const launched = chromium
@@ -24,6 +25,7 @@ export function createBrowserSession(options: { profileDir: string; headless?: b
         ctx.on("close", () => {
           context = null;
         });
+        scanTab = ctx.pages()[0] ?? null;
         return ctx;
       });
     launched.catch(() => {
@@ -36,7 +38,8 @@ export function createBrowserSession(options: { profileDir: string; headless?: b
     async page() {
       context ??= open();
       const ctx = await context;
-      return ctx.pages()[0] ?? (await ctx.newPage());
+      if (!scanTab || scanTab.isClosed()) scanTab = await ctx.newPage();
+      return scanTab;
     },
     async newPage() {
       context ??= open();

@@ -10,14 +10,18 @@ export interface Config {
 
 const expandHome = (path: string) => (path.startsWith("~/") ? join(homedir(), path.slice(2)) : path);
 
+function portFrom(env: NodeJS.ProcessEnv, name: "SKAI_PORT" | "SKAI_WEB_PORT", fallback: number): number {
+  const port = Number(env[name] ?? fallback);
+  if (!Number.isInteger(port) || port <= 0 || port > 65_535) throw new Error(`Invalid ${name}: ${env[name]}`);
+  return port;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
-  const port = Number(env.SKAI_PORT ?? 4317);
-  if (!Number.isInteger(port) || port <= 0 || port > 65_535) throw new Error(`Invalid SKAI_PORT: ${env.SKAI_PORT}`);
   return {
-    port,
+    port: portFrom(env, "SKAI_PORT", 4317),
     dataDir: expandHome(env.SKAI_DATA_DIR?.trim() || "~/.skai"),
     typesafeApiKey: env.TYPESAFE_API_KEY?.trim() || null,
-    webDevPort: Number(env.SKAI_WEB_PORT ?? 5173),
+    webDevPort: portFrom(env, "SKAI_WEB_PORT", 5173),
   };
 }
 
