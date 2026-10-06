@@ -1,6 +1,19 @@
 node_modules/
 dist/
+.DS_Store
+
+# Secrets: only the example is versioned
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local data (scans, Chrome profile live in ~/.skai, never in the repo)
 *.db
 *.db-*
-.DS_Store
+*.sqlite
+
+# Agent workspaces
+.claude/worktrees/
+.superpowers/
